@@ -1,0 +1,2013 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bản đồ tìm đường Chicago</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      crossorigin=""
+    />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" crossorigin="" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" crossorigin="" />
+    <style>
+      :root {
+        --bg: #efe4d0;
+        --panel: rgba(250, 245, 236, 0.96);
+        --panel-strong: #f6efe4;
+        --ink: #1f2a24;
+        --muted: #5e6b62;
+        --accent: #c04b2f;
+        --accent-strong: #8f351f;
+        --line: rgba(31, 42, 36, 0.12);
+        --success: #2f6f55;
+        --warn: #b9681f;
+        --danger: #b43a2b;
+        --shadow: 0 18px 44px rgba(35, 30, 24, 0.18);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        overflow: hidden;
+        font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(255, 255, 255, 0.55), transparent 40%),
+          linear-gradient(160deg, #f3ead7 0%, #e8dcc3 52%, #d7c39d 100%);
+      }
+
+      body.theme-wc26 {
+        --bg: #fff7f4;
+        --panel: rgba(255, 247, 244, 0.35);
+        --panel-strong: rgba(255, 247, 244, 0.55);
+        --ink: #5a0500;
+        --muted: #b95349;
+        --accent: #c9271b;
+        --accent-strong: #9c0c01;
+        --line: rgba(156, 12, 1, 0.15);
+        --success: #016541;
+        --warn: #cf1000;
+        --danger: #9c0c01;
+        --shadow: 0 8px 32px rgba(156, 12, 1, 0.15);
+        background: var(--bg);
+      }
+      
+      body.theme-wc26 .sidebar {
+        background: 
+          linear-gradient(180deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.4)),
+          url('/static/wc-bg.jpg') center top / cover no-repeat;
+        border-right: 1px solid rgba(1, 12, 39, 0.1);
+      }
+
+      body.theme-wc26 .panel {
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.5);
+      }
+
+      body.theme-wc26 select,
+      body.theme-wc26 input {
+        background: rgba(255, 255, 255, 0.6);
+      }
+
+      body.theme-wc26 .brand h1 {
+        color: #010C27;
+        text-shadow: none;
+      }
+      
+      body.theme-wc26 .eyebrow {
+        color: #C31221;
+      }
+      
+
+      body.theme-wc26 .leaflet-tile-pane {
+        opacity: 0.6;
+        filter: grayscale(30%);
+      }
+      
+      .wc-toggle-btn {
+        background: #9c0c01;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-weight: bold;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        box-shadow: 0 4px 10px rgba(156,12,1,0.3);
+        margin-top: 10px;
+        transition: all 0.2s;
+        width: max-content;
+      }
+      
+      .wc-toggle-btn:hover {
+        background: #c9271b;
+        box-shadow: 0 4px 10px rgba(201,39,27,0.3);
+        transform: translateY(-1px);
+      }
+      
+      .app-shell {
+        height: 100vh;
+        display: grid;
+        grid-template-columns: minmax(330px, 390px) minmax(0, 1fr);
+      }
+
+      .sidebar {
+        padding: 20px;
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0)),
+          var(--panel);
+        backdrop-filter: blur(14px);
+        border-right: 1px solid rgba(0, 0, 0, 0.08);
+        overflow-y: auto;
+      }
+
+      .brand {
+        margin-bottom: 16px;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 12px;
+        border-radius: 999px;
+        background: rgba(192, 75, 47, 0.12);
+        color: var(--accent-strong);
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+      }
+
+      h1 {
+        margin: 14px 0 8px;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 34px;
+        line-height: 1.06;
+      }
+
+      .subtitle {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.5;
+        font-size: 14px;
+      }
+
+      .panel {
+        margin-top: 16px;
+        padding: 16px;
+        border-radius: 18px;
+        background: var(--panel-strong);
+        box-shadow: var(--shadow);
+        border: 1px solid rgba(0, 0, 0, 0.06);
+      }
+
+      .panel h2 {
+        margin: 0 0 12px;
+        font-size: 15px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .field-grid {
+        display: grid;
+        gap: 12px;
+      }
+
+      label {
+        display: grid;
+        gap: 6px;
+        font-size: 13px;
+        color: var(--muted);
+        font-weight: 700;
+      }
+
+      select,
+      input,
+      button,
+      textarea {
+        font: inherit;
+      }
+
+      select,
+      input[type="datetime-local"],
+      input[type="number"] {
+        width: 100%;
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        border-radius: 12px;
+        padding: 11px 12px;
+        background: #fffdfa;
+        color: var(--ink);
+      }
+
+      .mini-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      .button-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-top: 12px;
+      }
+
+      button {
+        border: 0;
+        border-radius: 14px;
+        padding: 12px 14px;
+        cursor: pointer;
+        transition: transform 0.16s ease, filter 0.16s ease;
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+        filter: brightness(0.98);
+      }
+
+      .primary-btn {
+        background: linear-gradient(135deg, var(--accent), #d36e40);
+        color: white;
+        font-weight: 700;
+      }
+
+      .secondary-btn {
+        background: rgba(31, 42, 36, 0.08);
+        color: var(--ink);
+        font-weight: 700;
+      }
+
+      .ghost-btn {
+        background: rgba(255, 255, 255, 0.75);
+        color: var(--ink);
+        border: 1px solid rgba(0, 0, 0, 0.08);
+      }
+
+      .hint-box,
+      .status-box {
+        padding: 12px 14px;
+        border-radius: 14px;
+        line-height: 1.5;
+        font-size: 14px;
+      }
+
+      .hint-box {
+        background: rgba(47, 111, 85, 0.08);
+        color: #204c39;
+      }
+
+      .status-box {
+        margin-top: 10px;
+        background: rgba(31, 42, 36, 0.08);
+        color: var(--ink);
+      }
+
+      .status-box.warn {
+        background: rgba(185, 104, 31, 0.12);
+        color: #855117;
+      }
+
+      .status-box.error {
+        background: rgba(180, 58, 43, 0.12);
+        color: #8e2b21;
+      }
+
+      .status-box.success {
+        background: rgba(47, 111, 85, 0.12);
+        color: #225340;
+      }
+
+      .collection {
+        display: grid;
+        gap: 10px;
+      }
+
+      .collection-card {
+        border-radius: 14px;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        background: rgba(255, 255, 255, 0.78);
+        padding: 12px;
+      }
+
+      .collection-card strong {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 14px;
+      }
+
+      .collection-card .meta {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.45;
+      }
+
+      .inline-btn {
+        margin-top: 8px;
+        padding: 7px 10px;
+        border-radius: 10px;
+        background: rgba(180, 58, 43, 0.08);
+        color: var(--danger);
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .summary-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+
+      .metric-card {
+        padding: 12px;
+        border-radius: 16px;
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.45)),
+          rgba(255, 255, 255, 0.66);
+        border: 1px solid rgba(0, 0, 0, 0.08);
+      }
+
+      .metric-card span {
+        display: block;
+        font-size: 12px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+
+      .metric-card strong {
+        display: block;
+        margin-top: 6px;
+        font-size: 24px;
+      }
+
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 10px;
+        border-radius: 999px;
+        background: rgba(31, 42, 36, 0.08);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .chip.warn {
+        background: rgba(185, 104, 31, 0.12);
+        color: #8a5212;
+      }
+
+      .chip.danger {
+        background: rgba(180, 58, 43, 0.12);
+        color: #8d2b21;
+      }
+
+      .route-list {
+        display: grid;
+        gap: 10px;
+        margin-top: 12px;
+      }
+
+      .route-item {
+        border-radius: 16px;
+        padding: 12px;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        background: rgba(255, 255, 255, 0.84);
+      }
+
+      .route-item header {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+
+      .route-item h3 {
+        margin: 0;
+        font-size: 15px;
+      }
+
+      .route-item .route-meta {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .legend {
+        position: absolute;
+        top: 18px;
+        right: 18px;
+        z-index: 700;
+        width: min(300px, calc(100vw - 32px));
+        padding: 14px;
+        border-radius: 18px;
+        background: rgba(250, 245, 236, 0.94);
+        box-shadow: var(--shadow);
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        backdrop-filter: blur(14px);
+      }
+
+      .legend h2 {
+        margin: 0 0 10px;
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .legend-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      .legend-row + .legend-row {
+        margin-top: 8px;
+      }
+
+      .legend-line {
+        width: 34px;
+        height: 0;
+        border-top: 4px solid #000;
+        border-radius: 999px;
+      }
+
+      .legend-line.walk {
+        border-top-color: #2f6f55;
+        border-top-style: dashed;
+      }
+
+
+      .legend-line.rail {
+        border-top-color: #c60c30;
+      }
+
+      .legend-line.blocked {
+        border-top-color: #b43a2b;
+        border-top-style: dashed;
+      }
+
+      .legend-box {
+        width: 34px;
+        height: 14px;
+        border-radius: 999px;
+        background: rgba(185, 104, 31, 0.28);
+        border: 1px solid rgba(185, 104, 31, 0.45);
+      }
+
+      .map-shell {
+        position: relative;
+      }
+
+      #map {
+        min-height: 100vh;
+      }
+
+      .map-banner {
+        position: absolute;
+        left: 18px;
+        top: 18px;
+        z-index: 700;
+        padding: 12px 14px;
+        border-radius: 18px;
+        background: rgba(31, 42, 36, 0.78);
+        color: white;
+        box-shadow: var(--shadow);
+        max-width: min(360px, calc(100vw - 32px));
+      }
+
+      .map-banner strong {
+        display: block;
+        font-size: 14px;
+        margin-bottom: 4px;
+      }
+
+      .map-banner span {
+        display: block;
+        font-size: 12px;
+        line-height: 1.45;
+        color: rgba(255, 255, 255, 0.82);
+      }
+
+      .marker-badge {
+        display: grid;
+        place-items: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        border: 2px solid white;
+        color: white;
+        font-weight: 800;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.26);
+      }
+
+      .marker-badge.start {
+        background: #c04b2f;
+      }
+
+      .marker-badge.end {
+        background: #1f2a24;
+      }
+
+      .marker-badge.stop {
+        background: #1e6fb6;
+      }
+
+      .marker-badge.pending {
+        background: #b43a2b;
+      }
+
+      .leaflet-popup-content-wrapper {
+        border-radius: 14px;
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+
+      .empty-state {
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      @media (max-width: 980px) {
+        .app-shell {
+          grid-template-columns: 1fr;
+        }
+
+        .sidebar {
+          max-height: none;
+        }
+
+        #map {
+          min-height: 68vh;
+        }
+
+        .legend {
+          bottom: 18px;
+          top: auto;
+        }
+      }
+      .poi-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        transform: translate(-50%, -14px);
+        width: max-content;
+      }
+      .poi-icon {
+        width: 34px;
+        height: 34px;
+        background: #ff9800;
+        border: 2px solid white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      }
+      .poi-label {
+        margin-top: 2px;
+        color: #e67300;
+        font-size: 13px;
+        font-weight: 800;
+        text-shadow: 
+          -1px -1px 0 #fff,  
+           1px -1px 0 #fff,
+          -1px  1px 0 #fff,
+           1px  1px 0 #fff;
+        white-space: nowrap;
+      }
+      
+      .search-container {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .autocomplete-list {
+        position: absolute;
+        top: calc(100% - 4px);
+        left: 0;
+        right: 0;
+        background: white;
+        border: 1px solid rgba(0,0,0,0.1);
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        max-height: 200px;
+        overflow-y: auto;
+        z-index: 1000;
+        display: none;
+      }
+      
+      body.theme-wc26 .autocomplete-list {
+        background: var(--bg);
+        border-color: var(--line);
+      }
+
+      .autocomplete-list.active {
+        display: block;
+      }
+
+      .autocomplete-item {
+        padding: 10px 12px;
+        font-size: 13px;
+        line-height: 1.4;
+        cursor: pointer;
+        border-bottom: 1px solid rgba(0,0,0,0.05);
+      }
+      
+      body.theme-wc26 .autocomplete-item {
+        border-bottom-color: var(--line);
+      }
+
+      .autocomplete-item:last-child {
+        border-bottom: none;
+      }
+
+      .autocomplete-item:hover {
+        background: rgba(0,0,0,0.05);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <section class="brand">
+          <div class="eyebrow">Chicago-only route planner</div>
+          <h1>Tìm đường tối ưu trong Chicago</h1>
+          <p class="subtitle">
+            Chỉ sử dụng mạng đường bộ và CTA rail trong ranh giới thành phố Chicago. Hệ thống chấm điểm lộ trình
+            theo thời gian di chuyển, tổng quãng đường, mức ùn tắc trung bình theo thời điểm và cảnh báo khu vực
+            thường xuyên ngập úng hoặc ngập tuyết.
+          </p>
+          <button id="themeToggleBtn" class="wc-toggle-btn">⚽ Giao diện WC 2026</button>
+        </section>
+
+        <section class="panel">
+          <h2>Thiết lập lộ trình</h2>
+          <div class="field-grid">
+            <div class="search-container">
+              <label>
+                Điểm bắt đầu
+                <input type="text" id="originInput" placeholder="Tìm hoặc click trên bản đồ..." autocomplete="off" />
+              </label>
+              <ul id="originResults" class="autocomplete-list"></ul>
+            </div>
+            
+            <div class="search-container">
+              <label>
+                Điểm kết thúc
+                <input type="text" id="destInput" placeholder="Tìm hoặc click trên bản đồ..." autocomplete="off" />
+              </label>
+              <ul id="destResults" class="autocomplete-list"></ul>
+            </div>
+
+            <label>
+              Hồ sơ di chuyển
+              <select id="profileSelect">
+                <option value="walk">Đi bộ + CTA rail</option>
+              </select>
+            </label>
+
+            <label>
+              Thời điểm khởi hành
+              <input id="departAtInput" type="datetime-local" />
+            </label>
+
+            <div class="mini-grid">
+              <label>
+                Chế độ click trên bản đồ
+                <select id="editModeSelect">
+                  <option value="route_points">Chọn điểm đầu/cuối</option>
+                  <option value="stops">Thêm điểm dừng</option>
+                  <option value="blocked">Chọn đoạn đường cấm</option>
+                </select>
+              </label>
+
+              <label>
+                Thứ tự điểm dừng
+                <select id="stopOrderModeSelect">
+                  <option value="none">Chưa dùng</option>
+                  <option value="ordered">Giữ đúng thứ tự</option>
+                  <option value="optimize">Tối ưu thứ tự</option>
+                </select>
+              </label>
+            </div>
+
+            <label>
+              Bề rộng tránh cho đoạn đường cấm (m)
+              <input id="blockedBufferInput" type="number" min="10" max="200" step="5" value="35" />
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; flex-direction: row; margin-top: 4px;">
+              <input id="autoShowAmenitiesInput" type="checkbox" style="width: auto; height: auto; margin: 0;" />
+              Tự động hiện tiện ích khi Zoom gần
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; flex-direction: row; margin-top: 4px;">
+              <input id="forceCafeInput" type="checkbox" style="width: auto; height: auto; margin: 0;" />
+              Hiện tất cả Quán cafe
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; flex-direction: row; margin-top: 4px;">
+              <input id="forceRestaurantInput" type="checkbox" style="width: auto; height: auto; margin: 0;" />
+              Hiện tất cả Nhà hàng
+            </label>
+          </div>
+
+          <div id="modeHint" class="hint-box" style="margin-top: 12px"></div>
+
+          <div class="button-row">
+            <button id="routeBtn" class="primary-btn">Tính lộ trình tốt nhất</button>
+            <button id="resetBtn" class="secondary-btn">Xóa toàn bộ</button>
+            <button id="clearStopsBtn" class="ghost-btn">Xóa điểm dừng</button>
+            <button id="clearBlockedBtn" class="ghost-btn">Xóa đoạn cấm</button>
+          </div>
+
+          <div id="statusBox" class="status-box" aria-live="polite">Đang khởi tạo bản đồ...</div>
+        </section>
+
+        <section class="panel">
+          <h2>Điểm đang chọn</h2>
+          <div id="pointSummary" class="collection"></div>
+        </section>
+
+        <section class="panel">
+          <h2 style="display: flex; align-items: center;">Điểm dừng trung gian <button class="ghost-btn" type="button" onclick="document.getElementById('stopList').style.display = document.getElementById('stopList').style.display === 'none' ? 'grid' : 'none'" style="padding: 4px 8px; font-size: 11px; margin-left: auto;">Ẩn / Hiện</button></h2>
+          <div id="stopList" class="collection" style="display: none;"></div>
+        </section>
+
+        <section class="panel">
+          <h2 style="display: flex; align-items: center;">Danh sách đoạn đường cấm <button class="ghost-btn" type="button" onclick="document.getElementById('blockedList').style.display = document.getElementById('blockedList').style.display === 'none' ? 'grid' : 'none'" style="padding: 4px 8px; font-size: 11px; margin-left: auto;">Ẩn / Hiện</button></h2>
+          <div id="blockedList" class="collection" style="display: none;"></div>
+        </section>
+
+        <section class="panel">
+          <h2>Kết quả tốt nhất</h2>
+          <div id="summaryContent" class="empty-state">Chọn điểm đầu, điểm cuối rồi bấm "Tính lộ trình tốt nhất".</div>
+        </section>
+      </aside>
+
+      <main class="map-shell">
+        <div class="map-banner">
+          <strong>Bản đồ chỉ hiển thị Chicago</strong>
+          <span>
+            Mạng CTA rail được tô theo màu chính thức. Các vùng cam trên bản đồ là khu vực cần chú ý vì hay ùn tắc
+            hoặc thường phát sinh ngập úng, ngập tuyết.
+          </span>
+        </div>
+
+        <aside class="legend">
+          <h2>Chú giải</h2>
+          <div class="legend-row"><span class="legend-line walk"></span><span>Đi bộ</span></div>
+          <div class="legend-row"><span class="legend-line rail"></span><span>Tàu CTA</span></div>
+          <div class="legend-row"><span class="legend-line blocked"></span><span>Đoạn đường cấm do người dùng chọn</span></div>
+          <div class="legend-row"><span class="legend-box"></span><span>Khu vực cảnh báo giao thông và thời tiết</span></div>
+          <div class="legend-row"><span style="width: 24px; height: 24px; background: #ff9800; border: 2px solid white; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; box-shadow: 0 1px 2px rgba(0,0,0,0.2); margin: 0 5px;"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M20 3H4v10c0 2.21 1.79 4 4 4h6c2.21 0 4-1.79 4-4v-3h2c1.11 0 2-.89 2-2V5c0-1.11-.89-2-2-2zm0 5h-2V5h2v3zM4 19h16v2H4z"/></svg></span><span>Quán cafe & Nhà hàng</span></div>
+        </aside>
+
+        <div id="map" aria-label="Bản đồ Chicago"></div>
+      </main>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.js" crossorigin=""></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
+    <script>
+      const CHICAGO_TIMEZONE = "America/Chicago";
+
+      const state = {
+        map: null,
+        boundaryMeta: null,
+        railMeta: null,
+        contextMeta: null,
+        origin: null,
+        destination: null,
+        stops: [],
+        blockedSegments: [],
+        pendingBlockedPoint: null,
+        currentRoute: null,
+        layers: {
+          rail: null,
+          boundary: null,
+          mask: null,
+          contextBase: null,
+          contextHighlight: null,
+          route: null,
+          points: null,
+          blocked: null,
+          pendingBlocked: null,
+          cafePoi: null,
+          restaurantPoi: null,
+          wcFlags: null,
+          wcBg: null,
+        },
+        fetchedPoiTypes: { cafe: false, restaurant: false },
+      };
+
+      const el = {
+        originInput: document.getElementById("originInput"),
+        destInput: document.getElementById("destInput"),
+        originResults: document.getElementById("originResults"),
+        destResults: document.getElementById("destResults"),
+        profile: document.getElementById("profileSelect"),
+        departAt: document.getElementById("departAtInput"),
+        editMode: document.getElementById("editModeSelect"),
+        stopOrderMode: document.getElementById("stopOrderModeSelect"),
+        blockedBuffer: document.getElementById("blockedBufferInput"),
+        routeBtn: document.getElementById("routeBtn"),
+        resetBtn: document.getElementById("resetBtn"),
+        clearStopsBtn: document.getElementById("clearStopsBtn"),
+        clearBlockedBtn: document.getElementById("clearBlockedBtn"),
+        modeHint: document.getElementById("modeHint"),
+        statusBox: document.getElementById("statusBox"),
+        pointSummary: document.getElementById("pointSummary"),
+        stopList: document.getElementById("stopList"),
+        blockedList: document.getElementById("blockedList"),
+        summaryContent: document.getElementById("summaryContent"),
+        autoShowAmenitiesInput: document.getElementById("autoShowAmenitiesInput"),
+        forceCafeInput: document.getElementById("forceCafeInput"),
+        forceRestaurantInput: document.getElementById("forceRestaurantInput"),
+        themeToggleBtn: document.getElementById("themeToggleBtn"),
+      };
+
+      function setStatus(message, tone = "") {
+        el.statusBox.textContent = message;
+        el.statusBox.className = `status-box${tone ? ` ${tone}` : ""}`;
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#39;");
+      }
+
+      function formatCoordinate(point) {
+        return `${point.lat.toFixed(5)}, ${point.lon.toFixed(5)}`;
+      }
+
+      function formatDistance(meters) {
+        const value = Number(meters || 0);
+        if (value >= 1000) {
+          return `${(value / 1000).toFixed(1)} km`;
+        }
+        return `${Math.round(value)} m`;
+      }
+
+      function formatDuration(seconds) {
+        const total = Math.max(0, Math.round(Number(seconds || 0)));
+        const hours = Math.floor(total / 3600);
+        const minutes = Math.floor((total % 3600) / 60);
+        if (hours && minutes) {
+          return `${hours} giờ ${minutes} phút`;
+        }
+        if (hours) {
+          return `${hours} giờ`;
+        }
+        if (minutes) {
+          return `${minutes} phút`;
+        }
+        return `${total} giây`;
+      }
+
+      function formatDateTimeChicago(value) {
+        if (!value) {
+          return "Không rõ";
+        }
+        return new Intl.DateTimeFormat("vi-VN", {
+          timeZone: CHICAGO_TIMEZONE,
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        }).format(new Date(value));
+      }
+
+      function chicagoNowInputValue() {
+        const parts = new Intl.DateTimeFormat("sv-SE", {
+          timeZone: CHICAGO_TIMEZONE,
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        })
+          .formatToParts(new Date())
+          .reduce((acc, part) => {
+            acc[part.type] = part.value;
+            return acc;
+          }, {});
+        return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+      }
+
+      async function fetchJson(url, options = {}) {
+        const response = await fetch(url, options);
+        const contentType = response.headers.get("content-type") || "";
+        const payload = contentType.includes("application/json") ? await response.json() : null;
+        if (!response.ok) {
+          throw new Error(payload?.detail || `Yêu cầu thất bại: ${response.status}`);
+        }
+        return payload;
+      }
+
+      function markerIcon(text, tone) {
+        return L.divIcon({
+          className: "",
+          html: `<div class="marker-badge ${tone}">${escapeHtml(text)}</div>`,
+          iconSize: [28, 28],
+          iconAnchor: [14, 14],
+        });
+      }
+
+      function routeStyle(segment) {
+        if (segment.kind === "walk") {
+          return { color: "#2f6f55", weight: 5, dashArray: "8 8", opacity: 0.95 };
+        }
+        return { color: segment.line_color || "#C60C30", weight: 5, opacity: 0.96 };
+      }
+
+      function coordsToLatLngs(geometry) {
+        const coords = geometry?.coordinates || [];
+        return coords.map(([lon, lat]) => [lat, lon]);
+      }
+
+      function pointInRing(lon, lat, ring) {
+        let inside = false;
+        for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+          const xi = ring[i][0];
+          const yi = ring[i][1];
+          const xj = ring[j][0];
+          const yj = ring[j][1];
+          const intersects = yi > lat !== yj > lat && lon < ((xj - xi) * (lat - yi)) / ((yj - yi) || 1e-12) + xi;
+          if (intersects) {
+            inside = !inside;
+          }
+        }
+        return inside;
+      }
+
+      function pointInPolygonGeometry(lon, lat, polygonCoordinates) {
+        if (!polygonCoordinates?.length || !pointInRing(lon, lat, polygonCoordinates[0])) {
+          return false;
+        }
+        for (let i = 1; i < polygonCoordinates.length; i += 1) {
+          if (pointInRing(lon, lat, polygonCoordinates[i])) {
+            return false;
+          }
+        }
+        return true;
+      }
+
+      function pointInFeatureCollection(lat, lon, featureCollection) {
+        const features = featureCollection?.features || [];
+        for (const feature of features) {
+          const geometry = feature.geometry || {};
+          if (geometry.type === "Polygon" && pointInPolygonGeometry(lon, lat, geometry.coordinates)) {
+            return true;
+          }
+          if (geometry.type === "MultiPolygon") {
+            for (const polygon of geometry.coordinates || []) {
+              if (pointInPolygonGeometry(lon, lat, polygon)) {
+                return true;
+              }
+            }
+          }
+        }
+        return false;
+      }
+
+      function extractMaskHoles(featureCollection) {
+        const holes = [];
+        for (const feature of featureCollection.features || []) {
+          const geometry = feature.geometry || {};
+          if (geometry.type === "Polygon") {
+            holes.push(geometry.coordinates[0].map(([lon, lat]) => [lat, lon]));
+          }
+          if (geometry.type === "MultiPolygon") {
+            for (const polygon of geometry.coordinates || []) {
+              holes.push(polygon[0].map(([lon, lat]) => [lat, lon]));
+            }
+          }
+        }
+        return holes;
+      }
+
+      function updateModeHint() {
+        const mode = el.editMode.value;
+        if (mode === "route_points") {
+          el.modeHint.textContent = "Chế độ chọn điểm đầu/cuối: click lần 1 để đặt điểm đầu, lần 2 để đặt điểm cuối. Nếu click tiếp, hệ thống sẽ thay điểm đầu bằng vị trí mới.";
+          return;
+        }
+        if (mode === "stops") {
+          el.modeHint.textContent = "Chế độ thêm điểm dừng: mỗi lần click trong Chicago sẽ thêm một điểm dừng trung gian. Nếu bạn chưa chọn thứ tự, hệ thống sẽ mặc định chuyển sang 'Giữ đúng thứ tự'.";
+          return;
+        }
+        el.modeHint.textContent = "Chế độ chọn đường cấm: click vào bản đồ, hệ thống sẽ tự động tìm và chọn đoạn đường gần nhất để cấm.";
+      }
+
+      function clearRouteLayers() {
+        state.layers.route?.clearLayers();
+        state.layers.contextHighlight?.clearLayers();
+        state.currentRoute = null;
+        el.summaryContent.innerHTML = '<div class="empty-state">Chọn điểm đầu, điểm cuối rồi bấm "Tính lộ trình tốt nhất".</div>';
+      }
+
+      function updatePointSummary() {
+        const cards = [];
+        if (state.origin) {
+          cards.push(`
+            <div class="collection-card">
+              <strong>Điểm đầu A</strong>
+              <div class="meta">${escapeHtml(formatCoordinate(state.origin))}</div>
+            </div>
+          `);
+        }
+        if (state.destination) {
+          cards.push(`
+            <div class="collection-card">
+              <strong>Điểm cuối B</strong>
+              <div class="meta">${escapeHtml(formatCoordinate(state.destination))}</div>
+            </div>
+          `);
+        }
+        if (!cards.length) {
+          el.pointSummary.innerHTML = '<div class="empty-state">Chưa chọn điểm đầu và điểm cuối.</div>';
+          return;
+        }
+        el.pointSummary.innerHTML = cards.join("");
+      }
+
+      function updateStopList() {
+        if (!state.stops.length) {
+          el.stopList.innerHTML = '<div class="empty-state">Chưa có điểm dừng trung gian.</div>';
+          return;
+        }
+        el.stopList.innerHTML = state.stops
+          .map(
+            (stop, index) => `
+              <div class="collection-card">
+                <strong>Điểm dừng ${index + 1}</strong>
+                <div class="meta">${escapeHtml(formatCoordinate(stop))}</div>
+                <button class="inline-btn" data-stop-remove="${index}" type="button">Xóa điểm dừng này</button>
+              </div>
+            `
+          )
+          .join("");
+      }
+
+      function updateBlockedList() {
+        if (!state.blockedSegments.length) {
+          el.blockedList.innerHTML = '<div class="empty-state">Chưa có đoạn đường cấm nào được thêm.</div>';
+          return;
+        }
+        el.blockedList.innerHTML = state.blockedSegments
+          .map(
+            (segment, index) => `
+              <div class="collection-card">
+                <strong>${escapeHtml(segment.label)}</strong>
+                <div class="meta">
+                  Từ ${escapeHtml(formatCoordinate(segment.start))}<br />
+                  đến ${escapeHtml(formatCoordinate(segment.end))}<br />
+                  Dải tránh: ${escapeHtml(String(segment.buffer_m))} m
+                </div>
+                <button class="inline-btn" data-blocked-remove="${index}" type="button">Xóa đoạn này</button>
+              </div>
+            `
+          )
+          .join("");
+      }
+
+      function renderPointLayers() {
+        state.layers.points.clearLayers();
+        if (state.origin) {
+          L.marker([state.origin.lat, state.origin.lon], { icon: markerIcon("A", "start") })
+            .bindPopup("Điểm đầu A")
+            .addTo(state.layers.points);
+        }
+        if (state.destination) {
+          L.marker([state.destination.lat, state.destination.lon], { icon: markerIcon("B", "end") })
+            .bindPopup("Điểm cuối B")
+            .addTo(state.layers.points);
+        }
+        state.stops.forEach((stop, index) => {
+          L.marker([stop.lat, stop.lon], { icon: markerIcon(String(index + 1), "stop") })
+            .bindPopup(`Điểm dừng ${index + 1}`)
+            .addTo(state.layers.points);
+        });
+      }
+
+      function renderBlockedLayers() {
+        state.layers.blocked.clearLayers();
+        state.blockedSegments.forEach((segment) => {
+          let lineCoords = [];
+          if (segment.geometry && segment.geometry.coordinates) {
+             lineCoords = segment.geometry.coordinates.map(pt => [pt[1], pt[0]]);
+          } else {
+             lineCoords = [
+               [segment.start.lat, segment.start.lon],
+               [segment.end.lat, segment.end.lon]
+             ];
+          }
+          const line = L.polyline(lineCoords, { color: "#b43a2b", weight: 5, dashArray: "10 8", opacity: 0.95 });
+          line.bindPopup(`${escapeHtml(segment.label)}<br>Dải tránh ${segment.buffer_m} m`);
+          line.addTo(state.layers.blocked);
+        });
+
+        state.layers.pendingBlocked.clearLayers();
+        if (state.pendingBlockedPoint) {
+          L.marker([state.pendingBlockedPoint.lat, state.pendingBlockedPoint.lon], {
+            icon: markerIcon("!", "pending"),
+          })
+            .bindPopup("Điểm đầu đang chờ để tạo đoạn đường cấm")
+            .addTo(state.layers.pendingBlocked);
+        }
+      }
+
+      function renderWarningAreas(labels) {
+        state.layers.contextHighlight.clearLayers();
+        if (!labels?.length || !state.contextMeta) {
+          return;
+        }
+        const selected = new Set(labels);
+        const congestionFeatures = (state.contextMeta.congestion_corridors?.features || []).filter(
+          (feature) => selected.has(feature.properties?.label)
+        );
+        const hazardFeatures = (state.contextMeta.hazard_zones?.features || []).filter(
+          (feature) => selected.has(feature.properties?.label)
+        );
+
+        if (congestionFeatures.length) {
+          L.geoJSON({ type: "FeatureCollection", features: congestionFeatures }, {
+            style: () => ({
+              color: "#ff8c00",
+              weight: 12,
+              opacity: 0.45,
+            }),
+          }).addTo(state.layers.contextHighlight);
+        }
+        if (hazardFeatures.length) {
+          L.geoJSON({ type: "FeatureCollection", features: hazardFeatures }, {
+            style: () => ({
+              color: "#b43a2b",
+              weight: 2,
+              fillColor: "#f4b183",
+              fillOpacity: 0.32,
+            }),
+          }).addTo(state.layers.contextHighlight);
+        }
+      }
+
+      function renderRoute(response) {
+        clearRouteLayers();
+        state.currentRoute = response;
+
+        const routeBounds = [];
+        response.segments.forEach((segment) => {
+          const layer = L.geoJSON(segment.geometry, {
+            style: routeStyle(segment),
+          });
+          layer.eachLayer((subLayer) => {
+            if (typeof subLayer.getBounds === "function") {
+              routeBounds.push(subLayer.getBounds());
+            }
+          });
+          const segmentLabel =
+            segment.kind === "walk"
+              ? "Đi bộ"
+              : segment.line_name || "Tàu CTA";
+          layer.bindPopup(
+            `<strong>${escapeHtml(segmentLabel)}</strong><br>${escapeHtml(formatDuration(segment.duration_sec))}<br>${escapeHtml(formatDistance(segment.distance_m))}`
+          );
+          layer.addTo(state.layers.route);
+
+          if (typeof L.polylineDecorator === "function" && L.Symbol) {
+            try {
+              L.polylineDecorator(layer, {
+                patterns: [
+                  {
+                    offset: 25,
+                    repeat: 60,
+                    symbol: L.Symbol.arrowHead({
+                      pixelSize: 12,
+                      polygon: false,
+                      pathOptions: { stroke: true, weight: 3, opacity: 0.9, color: routeStyle(segment).color }
+                    })
+                  }
+                ]
+              }).addTo(state.layers.route);
+            } catch (e) {
+               console.error("PolylineDecorator error:", e);
+            }
+          }
+        });
+
+        renderWarningAreas(response.context?.warning_areas || []);
+
+        if (routeBounds.length) {
+          const union = routeBounds.reduce((acc, bounds) => (acc ? acc.extend(bounds) : bounds), null);
+          if (union) {
+            state.map.fitBounds(union.pad(0.18), { animate: true });
+          }
+        }
+
+        const stopOrderText =
+          response.summary.stop_order_mode === "optimize" && response.summary.stop_order_indices.length
+            ? response.summary.stop_order_indices.map((value) => value + 1).join(" → ")
+            : response.summary.stop_order_mode === "ordered" && state.stops.length
+              ? state.stops.map((_, index) => index + 1).join(" → ")
+              : "";
+
+        const chips = [];
+        if (response.context?.traffic_bucket_label) {
+          chips.push(`<span class="chip warn">Khung giao thông: ${escapeHtml(response.context.traffic_bucket_label)}</span>`);
+        }
+        chips.push(
+          `<span class="chip">${response.context?.one_way_compliant ? "Tuân thủ chiều đường" : "Cần kiểm tra chiều đường"}</span>`
+        );
+        if (response.summary.blocked_segment_count) {
+          chips.push(`<span class="chip danger">${response.summary.blocked_segment_count} đoạn cấm đang được áp dụng</span>`);
+        }
+        if (stopOrderText) {
+          chips.push(`<span class="chip">Thứ tự điểm dừng: ${escapeHtml(stopOrderText)}</span>`);
+        }
+        (response.summary.lines_used || []).forEach((lineName) => {
+          chips.push(`<span class="chip">${escapeHtml(lineName)}</span>`);
+        });
+
+        const warnings = [...(response.warnings || [])];
+        if (response.context?.warning_areas?.length) {
+          warnings.push(`Khu vực cần cảnh báo: ${response.context.warning_areas.join(", ")}.`);
+        }
+
+        const segmentItems = response.segments
+          .map((segment, index) => {
+            const title =
+              segment.kind === "walk"
+                ? "Đi bộ"
+                : segment.line_name || "Tàu CTA";
+            const lineColor = segment.kind === "rail" ? routeStyle(segment).color : null;
+            return `
+              <article class="route-item">
+                <header>
+                  <h3>${index + 1}. ${escapeHtml(title)}</h3>
+                  <div class="chips">
+                    <span class="chip"${lineColor ? ` style="background:${escapeHtml(lineColor)}22;color:${escapeHtml(lineColor)};border:1px solid ${escapeHtml(lineColor)}44"` : ""}>${escapeHtml(formatDuration(segment.duration_sec))}</span>
+                    <span class="chip">${escapeHtml(formatDistance(segment.distance_m))}</span>
+                  </div>
+                </header>
+                <div class="route-meta">
+                  ${escapeHtml(segment.from_name || "Điểm bắt đầu")} → ${escapeHtml(segment.to_name || "Điểm kết thúc")}<br />
+                  Khởi hành: ${escapeHtml(formatDateTimeChicago(segment.departure_time))}<br />
+                  Đến: ${escapeHtml(formatDateTimeChicago(segment.arrival_time))}
+                </div>
+              </article>
+            `;
+          })
+          .join("");
+
+        el.summaryContent.innerHTML = `
+          <div class="summary-grid">
+            <div class="metric-card">
+              <span>Tổng thời gian gốc</span>
+              <strong>${escapeHtml(formatDuration(response.totals.total_sec))}</strong>
+            </div>
+            <div class="metric-card">
+              <span>Tổng quãng đường</span>
+              <strong>${escapeHtml(formatDistance(response.totals.total_distance_m))}</strong>
+            </div>
+            <div class="metric-card">
+              <span>Thời gian sau chấm điểm ngữ cảnh</span>
+              <strong>${escapeHtml(formatDuration(response.totals.evaluated_sec))}</strong>
+            </div>
+            <div class="metric-card">
+              <span>Phần cộng thêm do rủi ro</span>
+              <strong>${escapeHtml(formatDuration(response.totals.context_penalty_sec))}</strong>
+            </div>
+          </div>
+
+          <div class="collection-card" style="margin-bottom: 12px">
+            <strong>${escapeHtml(response.summary.description)}</strong>
+            <div class="meta">
+              Khởi hành: ${escapeHtml(formatDateTimeChicago(response.summary.depart_at))}<br />
+              Đến nơi: ${escapeHtml(formatDateTimeChicago(response.summary.arrive_at))}<br />
+              Đi bộ: ${escapeHtml(formatDistance(response.totals.walk_distance_m))} |
+              Tàu: ${escapeHtml(formatDistance(response.totals.rail_distance_m))}
+            </div>
+          </div>
+
+          <div class="chips" style="margin-bottom: 12px">${chips.join("")}</div>
+
+          ${
+            warnings.length
+              ? `<div class="collection-card" style="margin-bottom: 12px">
+                  <strong>Cảnh báo và ghi chú</strong>
+                  <div class="meta">${warnings.map((item) => `• ${escapeHtml(item)}`).join("<br />")}</div>
+                </div>`
+              : ""
+          }
+
+          <h3 style="margin: 12px 0 8px; font-size: 14px; display: flex; align-items: center;">Chi tiết các chặng <button type="button" class="ghost-btn" onclick="document.getElementById('routesListEl').style.display = document.getElementById('routesListEl').style.display === 'none' ? 'grid' : 'none'" style="padding: 4px 8px; font-size: 11px; margin-left: auto;">Ẩn / Hiện</button></h3>
+          <div class="route-list" id="routesListEl" style="display: none;">${segmentItems}</div>
+        `;
+      }
+
+      function addStop(point) {
+        state.stops.push(point);
+        if (el.stopOrderMode.value === "none") {
+          el.stopOrderMode.value = "ordered";
+        }
+        updateStopList();
+        renderPointLayers();
+      }
+
+      function addBlockedSegment(start, end) {
+        const bufferValue = Math.max(10, Math.min(200, Number(el.blockedBuffer.value || 35)));
+        state.blockedSegments.push({
+          start,
+          end,
+          buffer_m: bufferValue,
+          label: `Đoạn cấm ${state.blockedSegments.length + 1}`,
+        });
+        updateBlockedList();
+        renderBlockedLayers();
+      }
+
+      function resetAll() {
+        state.origin = null;
+        state.destination = null;
+        state.stops = [];
+        state.blockedSegments = [];
+        state.pendingBlockedPoint = null;
+        updatePointSummary();
+        updateStopList();
+        updateBlockedList();
+        renderPointLayers();
+        renderBlockedLayers();
+        clearRouteLayers();
+        setStatus("Đã xóa toàn bộ lựa chọn trên bản đồ.", "success");
+      }
+
+      function distanceToSegmentMeters(pt, a, b) {
+        const latScale = 111132;
+        const lonScale = 111132 * Math.cos(pt.lat * Math.PI / 180);
+        
+        const px = pt.lon * lonScale;
+        const py = pt.lat * latScale;
+        const ax = a[0] * lonScale;
+        const ay = a[1] * latScale;
+        const bx = b[0] * lonScale;
+        const by = b[1] * latScale;
+        
+        const l2 = (bx - ax) * (bx - ax) + (by - ay) * (by - ay);
+        if (l2 === 0) return Math.sqrt((px - ax)*(px - ax) + (py - ay)*(py - ay));
+        
+        let t = ((px - ax) * (bx - ax) + (py - ay) * (by - ay)) / l2;
+        t = Math.max(0, Math.min(1, t));
+        
+        const projX = ax + t * (bx - ax);
+        const projY = ay + t * (by - ay);
+        
+        return Math.sqrt((px - projX)*(px - projX) + (py - projY)*(py - projY));
+      }
+
+      function findNearestRailSegment(point, maxDistMeters = 30) {
+        if (!state.railMeta || !state.railMeta.lines) return null;
+        let nearest = null;
+        let minDist = maxDistMeters;
+        
+        for (const feature of state.railMeta.lines.features || []) {
+          if (!feature.geometry) continue;
+          let coordsList = [];
+          if (feature.geometry.type === "LineString") {
+            coordsList = [feature.geometry.coordinates];
+          } else if (feature.geometry.type === "MultiLineString") {
+            coordsList = feature.geometry.coordinates;
+          }
+          
+          for (const coords of coordsList) {
+            for (let i = 0; i < coords.length - 1; i++) {
+              const dist = distanceToSegmentMeters(point, coords[i], coords[i+1]);
+              if (dist < minDist) {
+                minDist = dist;
+                nearest = { feature, segmentCoords: [coords[i], coords[i+1]], dist };
+              }
+            }
+          }
+        }
+        return nearest;
+      }
+
+      function handleMapClick(event) {
+        const point = { lat: event.latlng.lat, lon: event.latlng.lng };
+        if (!pointInFeatureCollection(point.lat, point.lon, state.boundaryMeta.feature_collection)) {
+          setStatus("Điểm vừa chọn nằm ngoài ranh giới Chicago. Hãy chọn lại trong vùng không bị che.", "warn");
+          return;
+        }
+
+        const mode = el.editMode.value;
+        clearRouteLayers();
+
+        if (mode === "route_points") {
+          state.pendingBlockedPoint = null;
+          if (!state.origin) {
+            state.origin = point;
+            el.originInput.value = `Tọa độ: ${point.lat.toFixed(5)}, ${point.lon.toFixed(5)}`;
+            setStatus("Đã đặt điểm đầu A.", "success");
+          } else if (!state.destination) {
+            state.destination = point;
+            el.destInput.value = `Tọa độ: ${point.lat.toFixed(5)}, ${point.lon.toFixed(5)}`;
+            setStatus("Đã đặt điểm cuối B. Bạn có thể bấm tính lộ trình.", "success");
+          } else {
+            state.origin = point;
+            el.originInput.value = `Tọa độ: ${point.lat.toFixed(5)}, ${point.lon.toFixed(5)}`;
+            state.destination = null;
+            el.destInput.value = "";
+            setStatus("Đã thay điểm đầu A bằng vị trí mới. Hãy chọn lại điểm cuối B.", "warn");
+          }
+          updatePointSummary();
+          renderPointLayers();
+          renderBlockedLayers();
+          return;
+        }
+
+        if (mode === "stops") {
+          state.pendingBlockedPoint = null;
+          if (state.stops.length >= 50 && el.stopOrderMode.value === "optimize") {
+            setStatus("Chế độ tối ưu thứ tự hiện chỉ hỗ trợ tối đa 50 điểm dừng.", "error");
+            return;
+          }
+          addStop(point);
+          setStatus(`Đã thêm điểm dừng ${state.stops.length}.`, "success");
+          renderBlockedLayers();
+          return;
+        }
+
+        setStatus("Đang tìm đoạn đường gần nhất...", "warn");
+        
+        const nearestRail = findNearestRailSegment(point, 30);
+        if (nearestRail) {
+          const coords = nearestRail.segmentCoords;
+          const routeName = nearestRail.feature.properties?.long_name || nearestRail.feature.properties?.route_id || "Đường sắt CTA";
+          
+          state.blockedSegments.push({
+            start: { lat: coords[0][1], lon: coords[0][0] },
+            end: { lat: coords[1][1], lon: coords[1][0] },
+            label: `Cấm tàu: tuyến ${routeName}`,
+            buffer_m: parseFloat(el.blockedBuffer.value) || 35,
+            geometry: {
+              type: "LineString",
+              coordinates: coords
+            }
+          });
+          updateBlockedList();
+          renderBlockedLayers();
+          setStatus(`Đã chọn chặn đoạn tàu: ${routeName}.`, "success");
+          return;
+        }
+
+        fetch(`https://nominatim.openstreetmap.org/reverse?lat=${point.lat}&lon=${point.lon}&zoom=16&format=json&polygon_geojson=1`)
+          .then((res) => res.json())
+          .then((data) => {
+            if (data && data.geojson && data.geojson.type === "LineString") {
+              const coords = data.geojson.coordinates;
+              const startLonLat = coords[0];
+              const endLonLat = coords[coords.length - 1];
+              const roadName = data.name || (data.address && data.address.road) || `Đoạn đường #${state.blockedSegments.length + 1}`;
+              
+              state.blockedSegments.push({
+                start: { lat: startLonLat[1], lon: startLonLat[0] },
+                end: { lat: endLonLat[1], lon: endLonLat[0] },
+                label: `Cấm: ${roadName}`,
+                buffer_m: parseFloat(el.blockedBuffer.value) || 35,
+                geometry: data.geojson
+              });
+              
+              updateBlockedList();
+              renderBlockedLayers();
+              setStatus(`Đã chọn chặn đường: ${roadName}.`, "success");
+            } else {
+              setStatus("Không tìm thấy đường thẳng nào tại vị trí vừa click.", "warn");
+            }
+          })
+          .catch((err) => {
+            console.error(err);
+            setStatus("Lỗi mạng khi tìm đoạn đường. Hãy thử lại.", "error");
+          });
+      }
+
+      async function requestRoute() {
+        if (!state.origin || !state.destination) {
+          setStatus("Bạn cần chọn đủ điểm đầu A và điểm cuối B trước khi tính lộ trình.", "error");
+          return;
+        }
+        const effectiveStopOrderMode = state.stops.length
+          ? el.stopOrderMode.value === "none"
+            ? "ordered"
+            : el.stopOrderMode.value
+          : "none";
+        if (effectiveStopOrderMode === "optimize" && state.stops.length > 50) {
+          setStatus("Chế độ tối ưu thứ tự chỉ hỗ trợ tối đa 50 điểm dừng.", "error");
+          return;
+        }
+
+        const payload = {
+          origin: state.origin,
+          destination: state.destination,
+          profile: el.profile.value,
+          depart_at: el.departAt.value || null,
+          stops: state.stops,
+          stop_order_mode: effectiveStopOrderMode,
+          blocked_segments: state.blockedSegments,
+        };
+
+        setStatus("Đang gửi yêu cầu và chấm điểm các lộ trình trong Chicago...", "warn");
+        try {
+          const response = await fetchJson("/api/route", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          renderRoute(response);
+          setStatus("Đã tìm thấy lộ trình tốt nhất theo các ràng buộc hiện tại.", "success");
+        } catch (error) {
+          clearRouteLayers();
+          setStatus(error.message || "Không thể tính lộ trình vào lúc này.", "error");
+        }
+      }
+
+      function bindListActions() {
+        el.stopList.addEventListener("click", (event) => {
+          const button = event.target.closest("[data-stop-remove]");
+          if (!button) {
+            return;
+          }
+          const index = Number(button.dataset.stopRemove);
+          state.stops.splice(index, 1);
+          updateStopList();
+          renderPointLayers();
+          clearRouteLayers();
+          setStatus("Đã xóa một điểm dừng.", "success");
+        });
+
+        el.blockedList.addEventListener("click", (event) => {
+          const button = event.target.closest("[data-blocked-remove]");
+          if (!button) {
+            return;
+          }
+          const index = Number(button.dataset.blockedRemove);
+          state.blockedSegments.splice(index, 1);
+          updateBlockedList();
+          renderBlockedLayers();
+          clearRouteLayers();
+          setStatus("Đã xóa một đoạn đường cấm.", "success");
+        });
+      }
+
+      let poiTimeout = null;
+      let isLoadingPois = false;
+      const POI_ZOOM_THRESHOLD = 15; // Chỉ tải POI khi zoom gần để tránh quá tải
+
+      async function fetchPOIs() {
+        if (!state.map || !state.layers.cafePoi || !state.layers.restaurantPoi) return;
+        const zoom = state.map.getZoom();
+        
+        const autoShowAmenities = el.autoShowAmenitiesInput && el.autoShowAmenitiesInput.checked;
+        const forceCafe = el.forceCafeInput && el.forceCafeInput.checked;
+        const forceRestaurant = el.forceRestaurantInput && el.forceRestaurantInput.checked;
+        
+        let showCafe = false;
+        let showRestaurant = false;
+
+        if (forceCafe || forceRestaurant) {
+          showCafe = forceCafe;
+          showRestaurant = forceRestaurant;
+        } else {
+          if (autoShowAmenities && zoom >= POI_ZOOM_THRESHOLD) {
+            showCafe = true;
+            showRestaurant = true;
+          }
+        }
+
+        if (showCafe) {
+          if (!state.map.hasLayer(state.layers.cafePoi)) state.map.addLayer(state.layers.cafePoi);
+        } else {
+          if (state.map.hasLayer(state.layers.cafePoi)) state.map.removeLayer(state.layers.cafePoi);
+        }
+
+        if (showRestaurant) {
+          if (!state.map.hasLayer(state.layers.restaurantPoi)) state.map.addLayer(state.layers.restaurantPoi);
+        } else {
+          if (state.map.hasLayer(state.layers.restaurantPoi)) state.map.removeLayer(state.layers.restaurantPoi);
+        }
+
+        const needsCafe = showCafe && !state.fetchedPoiTypes.cafe;
+        const needsRestaurant = showRestaurant && !state.fetchedPoiTypes.restaurant;
+
+        if (!needsCafe && !needsRestaurant) return;
+
+        if (isLoadingPois) return;
+        isLoadingPois = true;
+
+        const bbox = state.boundaryMeta.bbox;
+        const bboxStr = `${bbox[1]},${bbox[0]},${bbox[3]},${bbox[2]}`;
+
+        let queryNodes = "";
+        if (needsCafe) queryNodes += `node["amenity"="cafe"](${bboxStr});\n`;
+        if (needsRestaurant) queryNodes += `node["amenity"="restaurant"](${bboxStr});\n`;
+
+        const query = `
+          [out:json][timeout:25];
+          (
+${queryNodes}          );
+          out body;
+        `;
+
+        try {
+          if (needsCafe || needsRestaurant) setStatus("Đang tải dữ liệu biểu tượng cho toàn bộ Chicago...", "warn");
+          const response = await fetch("https://overpass-api.de/api/interpreter", {
+            method: "POST",
+            body: query
+          });
+          if (!response.ok) throw new Error("Overpass API error");
+          const data = await response.json();
+          
+          const cafeMarkers = [];
+          const restaurantMarkers = [];
+          
+          data.elements.forEach(poi => {
+            if (!poi.lat || !poi.lon || !poi.tags || !poi.tags.name) return;
+            if (!pointInFeatureCollection(poi.lat, poi.lon, state.boundaryMeta.feature_collection)) return;
+            
+            const isCafe = poi.tags.amenity === "cafe";
+            const iconSvg = isCafe 
+              ? `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M20 3H4v10c0 2.21 1.79 4 4 4h6c2.21 0 4-1.79 4-4v-3h2c1.11 0 2-.89 2-2V5c0-1.11-.89-2-2-2zm0 5h-2V5h2v3zM4 19h16v2H4z"/></svg>`
+              : `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.97V22h2.5v-9.03C11.34 12.84 13 11.12 13 9V2h-2v7zm5-3v8h2.5v8H21V2c-2.76 0-5 2.24-5 4z"/></svg>`;
+            
+            const icon = L.divIcon({
+              className: "",
+              html: `
+                <div class="poi-container">
+                  <div class="poi-icon">${iconSvg}</div>
+                  <div class="poi-label">${escapeHtml(poi.tags.name)}</div>
+                </div>
+              `,
+              iconSize: [0, 0],
+              iconAnchor: [0, 0]
+            });
+            
+            const marker = L.marker([poi.lat, poi.lon], { icon, interactive: false });
+            if (isCafe) cafeMarkers.push(marker);
+            else restaurantMarkers.push(marker);
+          });
+          
+          if (needsCafe) {
+            state.layers.cafePoi.addLayers(cafeMarkers);
+            state.fetchedPoiTypes.cafe = true;
+          }
+          if (needsRestaurant) {
+            state.layers.restaurantPoi.addLayers(restaurantMarkers);
+            state.fetchedPoiTypes.restaurant = true;
+          }
+          setStatus("Bản đồ đã sẵn sàng.", "success");
+        } catch (err) {
+          console.error("Failed to fetch POIs", err);
+          setStatus("Lỗi khi tải biểu tượng, vui lòng thử lại.", "error");
+        } finally {
+          isLoadingPois = false;
+        }
+      }
+
+      function handleMapMove() {
+        if (poiTimeout) clearTimeout(poiTimeout);
+        poiTimeout = setTimeout(fetchPOIs, 600);
+      }
+
+      async function init() {
+        try {
+          setStatus("Đang tải dữ liệu ranh giới, CTA rail và các yếu tố ngữ cảnh...", "warn");
+          el.departAt.value = chicagoNowInputValue();
+
+          const [boundaryMeta, railMeta, contextMeta] = await Promise.all([
+            fetchJson("/api/meta/boundary"),
+            fetchJson("/api/meta/rail"),
+            fetchJson("/api/meta/context"),
+          ]);
+
+          state.boundaryMeta = boundaryMeta;
+          state.railMeta = railMeta;
+          state.contextMeta = contextMeta;
+
+          state.map = L.map("map", {
+            zoomControl: false,
+            preferCanvas: true,
+            attributionControl: true,
+          });
+
+          L.control.zoom({ position: "topright" }).addTo(state.map);
+
+          L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            maxZoom: 18,
+            minZoom: 10,
+            attribution: "&copy; OpenStreetMap",
+            keepBuffer: 8,
+            updateWhenZooming: false,
+            updateWhenIdle: true
+          }).addTo(state.map);
+
+          state.layers.rail = L.layerGroup().addTo(state.map);
+          state.layers.boundary = L.layerGroup().addTo(state.map);
+          state.layers.mask = L.layerGroup().addTo(state.map);
+          state.layers.contextBase = L.layerGroup().addTo(state.map);
+          state.layers.contextHighlight = L.layerGroup().addTo(state.map);
+          state.layers.route = L.layerGroup().addTo(state.map);
+          state.layers.points = L.layerGroup().addTo(state.map);
+          state.layers.blocked = L.layerGroup().addTo(state.map);
+          state.layers.pendingBlocked = L.layerGroup().addTo(state.map);
+          state.layers.cafePoi = L.markerClusterGroup({ disableClusteringAtZoom: 16, maxClusterRadius: 40 });
+          state.layers.restaurantPoi = L.markerClusterGroup({ disableClusteringAtZoom: 16, maxClusterRadius: 40 });
+
+          const bbox = boundaryMeta.bbox;
+          const bounds = L.latLngBounds(
+            [bbox[1], bbox[0]],
+            [bbox[3], bbox[2]]
+          );
+          state.map.fitBounds(bounds);
+          state.map.setMaxBounds(bounds.pad(1.0));
+
+          L.geoJSON(boundaryMeta.feature_collection, {
+            style: () => ({
+              color: "#1f2a24",
+              weight: 3,
+              fillOpacity: 0,
+            }),
+          }).addTo(state.layers.boundary);
+
+          const maskOuter = [
+            [89.8, -179.9],
+            [89.8, 179.9],
+            [-89.8, 179.9],
+            [-89.8, -179.9],
+          ];
+          const maskHoles = extractMaskHoles(boundaryMeta.feature_collection);
+          L.polygon([maskOuter, ...maskHoles], {
+            fillColor: "#d9ccb3",
+            fillOpacity: 0.7,
+            stroke: false,
+            interactive: false,
+            fillRule: "evenodd",
+          }).addTo(state.layers.mask);
+
+          state.layers.wcFlags = L.layerGroup();
+          const flagsList = ['🇺🇸', '🇨🇦', '🇲🇽', '🇦🇷', '🇧🇷', '🇫🇷', '🇩🇪', '🇪🇸', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', '🇯🇵', '🇰🇷', '🇵🇹', '🇮🇹', '🇳🇱', '🇺🇾', '🇨🇴', '🇭🇷', '🇲🇦', '🇸🇳', '🇧🇪', '🇨🇭', '🇩🇰', '🇦🇺', '🇸🇦'];
+          const uniqueFlags = [...new Set(flagsList)];
+          
+          const pushDist = 0.12;
+          const minLat = bbox[1] - pushDist;
+          const maxLat = bbox[3] + pushDist;
+          const minLon = bbox[0] - pushDist;
+          const maxLon = bbox[2] + pushDist;
+          
+          const w = maxLon - minLon;
+          const h = maxLat - minLat;
+          const perimeter = 2 * w + 2 * h;
+          const step = perimeter / uniqueFlags.length;
+          
+          uniqueFlags.forEach((flag, index) => {
+            let dist = index * step;
+            let lat, lon;
+            
+            if (dist <= w) {
+              lat = minLat;
+              lon = minLon + dist;
+            } else if (dist <= w + h) {
+              lat = minLat + (dist - w);
+              lon = maxLon;
+            } else if (dist <= 2*w + h) {
+              lat = maxLat;
+              lon = maxLon - (dist - (w + h));
+            } else {
+              lat = maxLat - (dist - (2*w + h));
+              lon = minLon;
+            }
+            
+            const icon = L.divIcon({
+              className: 'wc-flag-icon',
+              html: `<div style="position: absolute; top: 0; left: 0; transform: translate(-50%, -50%) rotate(${Math.random() * 30 - 15}deg); opacity: 0.95; pointer-events: none; user-select: none; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3)); font-size: var(--flag-size, 120px); line-height: 1;">${flag}</div>`,
+              iconSize: [0, 0],
+              iconAnchor: [0, 0]
+            });
+            L.marker([lat, lon], { icon, interactive: false }).addTo(state.layers.wcFlags);
+          });
+          
+          function updateFlagScale() {
+            const zoom = state.map.getZoom();
+            // Scale flags geographically (base zoom 11 = 120px)
+            const size = 120 * Math.pow(2, zoom - 11);
+            document.documentElement.style.setProperty('--flag-size', size + 'px');
+          }
+          state.map.on("zoom", updateFlagScale);
+          updateFlagScale();
+          
+          state.map.createPane('wcBgPane');
+          state.map.getPane('wcBgPane').style.zIndex = 150;
+          
+          const centerLat = (minLat + maxLat) / 2;
+          const centerLon = (minLon + maxLon) / 2;
+          const targetRatio = 1900 / 1333;
+          const imgDegreeHeight = h * 1.1; 
+          const imgDegreeWidth = (imgDegreeHeight * targetRatio) / Math.cos(centerLat * Math.PI / 180);
+          
+          const imgMinLat = centerLat - imgDegreeHeight / 2;
+          const imgMaxLat = centerLat + imgDegreeHeight / 2;
+          const imgMinLon = centerLon - imgDegreeWidth / 2;
+          const imgMaxLon = centerLon + imgDegreeWidth / 2;
+
+          state.layers.wcBg = L.imageOverlay('wc-bg.jpg', [[imgMinLat, imgMinLon], [imgMaxLat, imgMaxLon]], {
+            pane: 'wcBgPane',
+            opacity: 0.4,
+            interactive: false
+          });
+
+          L.geoJSON(railMeta.lines, {
+            style: (feature) => ({
+              color: `#${feature.properties?.route_color || "666666"}`,
+              weight: 2,
+              opacity: 0.92,
+            }),
+          }).addTo(state.layers.rail);
+
+          L.geoJSON(contextMeta.congestion_corridors, {
+            style: () => ({
+              color: "#ff8c00",
+              weight: 8,
+              opacity: 0.25,
+            }),
+          }).addTo(state.layers.contextBase);
+
+          L.geoJSON(contextMeta.hazard_zones, {
+            style: () => ({
+              color: "#c96e28",
+              weight: 1,
+              fillColor: "#f4d2a8",
+              fillOpacity: 0.22,
+            }),
+          }).addTo(state.layers.contextBase);
+
+          state.map.on("click", handleMapClick);
+          state.map.on("moveend", handleMapMove);
+          state.map.on("zoomend", handleMapMove);
+          bindListActions();
+          updateModeHint();
+          updatePointSummary();
+          updateStopList();
+          updateBlockedList();
+          setStatus("Bản đồ đã sẵn sàng. Hãy chọn điểm đầu và điểm cuối trong Chicago.", "success");
+        } catch (error) {
+          console.error(error);
+          setStatus(error.message || "Không thể khởi tạo bản đồ và dữ liệu nền.", "error");
+        }
+      }
+
+      el.editMode.addEventListener("change", updateModeHint);
+      el.routeBtn.addEventListener("click", requestRoute);
+      el.resetBtn.addEventListener("click", resetAll);
+      el.clearStopsBtn.addEventListener("click", () => {
+        state.stops = [];
+        updateStopList();
+        renderPointLayers();
+        clearRouteLayers();
+        setStatus("Đã xóa toàn bộ điểm dừng.", "success");
+      });
+      
+      let searchTimeout;
+      function bindSearchActions() {
+        const setupSearch = (inputEl, resultsEl, type) => {
+          inputEl.addEventListener("input", (e) => {
+            const query = e.target.value.trim();
+            if (!query) {
+              resultsEl.innerHTML = "";
+              resultsEl.classList.remove("active");
+              return;
+            }
+
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(async () => {
+              try {
+                const bbox = state.boundaryMeta?.bbox;
+                let viewbox = "";
+                if (bbox) {
+                  viewbox = `&viewbox=${bbox[0]},${bbox[3]},${bbox[2]},${bbox[1]}&bounded=1`;
+                }
+                const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json${viewbox}`;
+                
+                const res = await fetch(url);
+                let data = await res.json();
+                
+                if (data && data.length > 0 && state.boundaryMeta?.feature_collection) {
+                  data = data.filter(item => {
+                    return pointInFeatureCollection(parseFloat(item.lat), parseFloat(item.lon), state.boundaryMeta.feature_collection);
+                  });
+                }
+                
+                resultsEl.innerHTML = "";
+                if (data && data.length > 0) {
+                  data.forEach((item) => {
+                    const li = document.createElement("li");
+                    li.className = "autocomplete-item";
+                    li.textContent = item.display_name;
+                    li.addEventListener("click", () => {
+                      inputEl.value = item.display_name.split(',')[0];
+                      resultsEl.innerHTML = "";
+                      resultsEl.classList.remove("active");
+                      
+                      const point = { lat: parseFloat(item.lat), lon: parseFloat(item.lon) };
+                      
+                      if (type === 'origin') {
+                        state.origin = point;
+                        setStatus("Đã đặt điểm đầu A từ tìm kiếm.", "success");
+                      } else {
+                        state.destination = point;
+                        setStatus("Đã đặt điểm cuối B từ tìm kiếm.", "success");
+                      }
+                      
+                      state.map.setView([point.lat, point.lon], 14);
+                      updatePointSummary();
+                      renderPointLayers();
+                      clearRouteLayers();
+                    });
+                    resultsEl.appendChild(li);
+                  });
+                  resultsEl.classList.add("active");
+                } else {
+                  resultsEl.classList.remove("active");
+                }
+              } catch (err) {
+                console.error("Geocoding error:", err);
+              }
+            }, 400);
+          });
+          
+          document.addEventListener("click", (e) => {
+            if (e.target !== inputEl && e.target !== resultsEl) {
+              resultsEl.classList.remove("active");
+            }
+          });
+        };
+
+        setupSearch(el.originInput, el.originResults, 'origin');
+        setupSearch(el.destInput, el.destResults, 'dest');
+      }
+      el.clearBlockedBtn.addEventListener("click", () => {
+        state.blockedSegments = [];
+        state.pendingBlockedPoint = null;
+        updateBlockedList();
+        renderBlockedLayers();
+        clearRouteLayers();
+        setStatus("Đã xóa toàn bộ đoạn đường cấm.", "success");
+      });
+      if (el.autoShowAmenitiesInput) el.autoShowAmenitiesInput.addEventListener("change", fetchPOIs);
+      el.forceCafeInput.addEventListener("change", fetchPOIs);
+      el.forceRestaurantInput.addEventListener("change", fetchPOIs);
+
+      el.themeToggleBtn.addEventListener("click", () => {
+        const isWc = document.body.classList.toggle("theme-wc26");
+        el.themeToggleBtn.innerHTML = isWc ? "⚽ Tắt giao diện WC" : "⚽ Giao diện WC 2026";
+        if (isWc) {
+          state.layers.wcFlags.addTo(state.map);
+          state.layers.wcBg.addTo(state.map);
+        } else {
+          state.layers.wcFlags.remove();
+          state.layers.wcBg.remove();
+        }
+      });
+
+      bindSearchActions();
+      init();
+    </script>
+  </body>
+</html>

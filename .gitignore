@@ -1,0 +1,31 @@
+# Python & OS files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.DS_Store
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# IDEs
+.idea/
+.vscode/
+
+# Heavy / auto-generated OTP files & Logs
+otp/otp-shaded-*.jar
+otp/runtime/
+otp/input/*.zip
+
+# Data / GTFS files (quá nặng để up GitHub)
+data/*.txt
+data/*.htm
+
+# Runtime files
+app.log
+app.pid
+cache/
+backend/router

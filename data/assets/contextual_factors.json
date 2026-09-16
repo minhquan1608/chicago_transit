@@ -1,0 +1,208 @@
+{
+  "metadata": {
+    "generated_at": "2026-04-07T00:00:00+00:00",
+    "source": "Curated local survey-style risk and congestion model for Chicago-only routing."
+  },
+  "time_profiles": [
+    {
+      "id": "overnight",
+      "label": "Đêm khuya",
+      "start_hour": 0,
+      "end_hour": 6,
+      "walk_multiplier": 0.95
+    },
+    {
+      "id": "morning_peak",
+      "label": "Cao điểm sáng",
+      "start_hour": 6,
+      "end_hour": 10,
+      "walk_multiplier": 1.05
+    },
+    {
+      "id": "midday",
+      "label": "Ban ngày",
+      "start_hour": 10,
+      "end_hour": 16,
+      "walk_multiplier": 1.0
+    },
+    {
+      "id": "evening_peak",
+      "label": "Cao điểm chiều",
+      "start_hour": 16,
+      "end_hour": 20,
+      "walk_multiplier": 1.08
+    },
+    {
+      "id": "late_evening",
+      "label": "Tối muộn",
+      "start_hour": 20,
+      "end_hour": 24,
+      "walk_multiplier": 1.0
+    }
+  ],
+  "congestion_corridors": {
+    "type": "FeatureCollection",
+    "features": []
+  },
+  "hazard_zones": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "properties": {
+          "id": "lower_wacker",
+          "label": "Lower Wacker và đường hầm trung tâm",
+          "issue": "flood",
+          "mode": "road",
+          "severity": 0.42,
+          "buffer_m": 120,
+          "warning": "Khu vực downtown có lịch sử ngập úng ở các đoạn hầm và đường thấp khi mưa lớn."
+        },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                -87.639,
+                41.889
+              ],
+              [
+                -87.628,
+                41.889
+              ],
+              [
+                -87.628,
+                41.882
+              ],
+              [
+                -87.639,
+                41.882
+              ],
+              [
+                -87.639,
+                41.889
+              ]
+            ]
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "id": "jackson_park_lakefront",
+          "label": "Lakefront Jackson Park - South Shore",
+          "issue": "flood",
+          "mode": "road",
+          "severity": 0.36,
+          "buffer_m": 100,
+          "warning": "Khu vực ven hồ Jackson Park và South Shore thường có nguy cơ ngập, gió mạnh và tầm nhìn bị hạn chế."
+        },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                -87.595,
+                41.807
+              ],
+              [
+                -87.565,
+                41.807
+              ],
+              [
+                -87.565,
+                41.735
+              ],
+              [
+                -87.595,
+                41.735
+              ],
+              [
+                -87.595,
+                41.807
+              ]
+            ]
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "id": "garfield_viaducts",
+          "label": "Các đoạn cầu thấp Garfield",
+          "issue": "flood",
+          "mode": "road",
+          "severity": 0.31,
+          "buffer_m": 90,
+          "warning": "Một số đoạn cầu thấp và hầm chui khu Garfield có khả năng đọng nước sau mưa."
+        },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                -87.676,
+                41.806
+              ],
+              [
+                -87.618,
+                41.806
+              ],
+              [
+                -87.618,
+                41.789
+              ],
+              [
+                -87.676,
+                41.789
+              ],
+              [
+                -87.676,
+                41.806
+              ]
+            ]
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "id": "northwest_snow",
+          "label": "Hành lang gió tuyết phía tây bắc",
+          "issue": "snow",
+          "mode": "road",
+          "severity": 0.27,
+          "buffer_m": 110,
+          "warning": "Khu vực tây bắc Chicago dễ bị tuyết dày, gió thổi ngang và chậm xe vào ngày thời tiết xấu."
+        },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                -87.83,
+                41.99
+              ],
+              [
+                -87.7,
+                41.99
+              ],
+              [
+                -87.7,
+                41.94
+              ],
+              [
+                -87.83,
+                41.94
+              ],
+              [
+                -87.83,
+                41.99
+              ]
+            ]
+          ]
+        }
+      }
+    ]
+  }
+}
