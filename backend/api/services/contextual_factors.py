@@ -1,7 +1,7 @@
 """
 @file context_store.py
 @brief Quản lý các yếu tố ngữ cảnh môi trường (giao thông, thời tiết, ngập úng) cho lộ trình.
-@author Lê Phước Minh Quân
+@author Lê Phước Minh Quân & others
 @date 2026-09-18
 @details File này cung cấp lớp ContextualFactorsStore để tải dữ liệu ngữ cảnh từ JSON, 
          tính toán hệ số thời gian (time profiles), xác định mức độ trùng lặp hình học 
