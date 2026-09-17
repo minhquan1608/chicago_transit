@@ -792,7 +792,17 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
     <script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.js" crossorigin=""></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
+    
     <script>
+      /**
+       * @file index.html (Scripts)
+       * @brief Script xử lý giao diện bản đồ, tương tác người dùng và gọi API Backend.
+       * @author Lê Phước Minh Quân
+       * @date 2026-09-18
+       * @details Khởi tạo bản đồ Leaflet, quản lý các lớp layer (đường cấm, lộ trình, POIs) 
+       *          và xử lý luồng tìm kiếm định tuyến giao thông Chicago Transit.
+       */
+
       const CHICAGO_TIMEZONE = "America/Chicago";
 
       const state = {
@@ -850,11 +860,19 @@
         themeToggleBtn: document.getElementById("themeToggleBtn"),
       };
 
+      /**
+       * @brief Cập nhật ô thông báo trạng thái phía dưới menu bên trái.
+       * @param {string} message Nội dung thông báo.
+       * @param {string} tone Phân loại màu ('warn', 'error', 'success').
+       */
       function setStatus(message, tone = "") {
         el.statusBox.textContent = message;
         el.statusBox.className = `status-box${tone ? ` ${tone}` : ""}`;
       }
 
+      /**
+       * @brief Escaping mã HTML để phòng chống lỗ hổng XSS khi render chuỗi vào DOM.
+       */
       function escapeHtml(value) {
         return String(value ?? "")
           .replaceAll("&", "&amp;")
@@ -864,10 +882,16 @@
           .replaceAll("'", "&#39;");
       }
 
+      /**
+       * @brief Định dạng tọa độ để hiển thị thân thiện (lấy 5 chữ số thập phân).
+       */
       function formatCoordinate(point) {
         return `${point.lat.toFixed(5)}, ${point.lon.toFixed(5)}`;
       }
 
+      /**
+       * @brief Chuyển đổi khoảng cách từ mét sang chuỗi dễ đọc (mét hoặc km).
+       */
       function formatDistance(meters) {
         const value = Number(meters || 0);
         if (value >= 1000) {
@@ -876,6 +900,9 @@
         return `${Math.round(value)} m`;
       }
 
+      /**
+       * @brief Chuyển đổi thời lượng từ giây sang giờ/phút/giây.
+       */
       function formatDuration(seconds) {
         const total = Math.max(0, Math.round(Number(seconds || 0)));
         const hours = Math.floor(total / 3600);
@@ -892,6 +919,9 @@
         return `${total} giây`;
       }
 
+      /**
+       * @brief Định dạng ngày giờ theo múi giờ Chicago (America/Chicago).
+       */
       function formatDateTimeChicago(value) {
         if (!value) {
           return "Không rõ";
@@ -907,6 +937,9 @@
         }).format(new Date(value));
       }
 
+      /**
+       * @brief Lấy chuỗi ngày giờ hiện tại theo định dạng yêu cầu của input type="datetime-local" (múi giờ Chicago).
+       */
       function chicagoNowInputValue() {
         const parts = new Intl.DateTimeFormat("sv-SE", {
           timeZone: CHICAGO_TIMEZONE,
@@ -925,6 +958,9 @@
         return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
       }
 
+      /**
+       * @brief Hàm tiện ích bọc lại `fetch` để tự động parse JSON và bắt lỗi HTTP.
+       */
       async function fetchJson(url, options = {}) {
         const response = await fetch(url, options);
         const contentType = response.headers.get("content-type") || "";
@@ -935,6 +971,9 @@
         return payload;
       }
 
+      /**
+       * @brief Tạo một marker icon tùy chỉnh của Leaflet (bằng HTML/CSS).
+       */
       function markerIcon(text, tone) {
         return L.divIcon({
           className: "",
@@ -944,6 +983,9 @@
         });
       }
 
+      /**
+       * @brief Xác định cấu hình hiển thị (màu sắc, độ nét) của đoạn đường vẽ trên bản đồ.
+       */
       function routeStyle(segment) {
         if (segment.kind === "walk") {
           return { color: "#2f6f55", weight: 5, dashArray: "8 8", opacity: 0.95 };
@@ -951,11 +993,17 @@
         return { color: segment.line_color || "#C60C30", weight: 5, opacity: 0.96 };
       }
 
+      /**
+       * @brief Chuyển đổi dữ liệu Geometry.Coordinates (GeoJSON) thành mảng [lat, lon] cho Leaflet.
+       */
       function coordsToLatLngs(geometry) {
         const coords = geometry?.coordinates || [];
         return coords.map(([lon, lat]) => [lat, lon]);
       }
 
+      /**
+       * @brief Thuật toán Ray-Casting để kiểm tra một điểm (lon, lat) có nằm bên trong một đa giác không.
+       */
       function pointInRing(lon, lat, ring) {
         let inside = false;
         for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
@@ -971,6 +1019,9 @@
         return inside;
       }
 
+      /**
+       * @brief Kiểm tra một tọa độ (lon, lat) có nằm bên trong mảng cấu trúc Polygon Geometry hay không.
+       */
       function pointInPolygonGeometry(lon, lat, polygonCoordinates) {
         if (!polygonCoordinates?.length || !pointInRing(lon, lat, polygonCoordinates[0])) {
           return false;
@@ -983,6 +1034,9 @@
         return true;
       }
 
+      /**
+       * @brief Kiểm tra một tọa độ (lat, lon) có nằm trong bất kỳ Polygon nào của FeatureCollection không.
+       */
       function pointInFeatureCollection(lat, lon, featureCollection) {
         const features = featureCollection?.features || [];
         for (const feature of features) {
@@ -1001,6 +1055,9 @@
         return false;
       }
 
+      /**
+       * @brief Trích xuất các đa giác (holes) để tạo lớp mặt nạ che khu vực bên ngoài biên giới Chicago.
+       */
       function extractMaskHoles(featureCollection) {
         const holes = [];
         for (const feature of featureCollection.features || []) {
@@ -1017,6 +1074,9 @@
         return holes;
       }
 
+      /**
+       * @brief Cập nhật câu gợi ý hướng dẫn người dùng dựa vào chế độ click chuột (editMode) đang chọn.
+       */
       function updateModeHint() {
         const mode = el.editMode.value;
         if (mode === "route_points") {
@@ -1030,6 +1090,9 @@
         el.modeHint.textContent = "Chế độ chọn đường cấm: click vào bản đồ, hệ thống sẽ tự động tìm và chọn đoạn đường gần nhất để cấm.";
       }
 
+      /**
+       * @brief Dọn dẹp sạch sẽ các layer lộ trình và đường line trên bản đồ (reset view kết quả).
+       */
       function clearRouteLayers() {
         state.layers.route?.clearLayers();
         state.layers.contextHighlight?.clearLayers();
@@ -1037,6 +1100,9 @@
         el.summaryContent.innerHTML = '<div class="empty-state">Chọn điểm đầu, điểm cuối rồi bấm "Tính lộ trình tốt nhất".</div>';
       }
 
+      /**
+       * @brief Cập nhật giao diện (thẻ Card) hiển thị tọa độ điểm bắt đầu và điểm đến đang chọn.
+       */
       function updatePointSummary() {
         const cards = [];
         if (state.origin) {
@@ -1062,6 +1128,9 @@
         el.pointSummary.innerHTML = cards.join("");
       }
 
+      /**
+       * @brief Cập nhật danh sách điểm dừng trung gian bên sidebar.
+       */
       function updateStopList() {
         if (!state.stops.length) {
           el.stopList.innerHTML = '<div class="empty-state">Chưa có điểm dừng trung gian.</div>';
@@ -1080,6 +1149,9 @@
           .join("");
       }
 
+      /**
+       * @brief Cập nhật danh sách các đoạn đường đang cấm bên sidebar.
+       */
       function updateBlockedList() {
         if (!state.blockedSegments.length) {
           el.blockedList.innerHTML = '<div class="empty-state">Chưa có đoạn đường cấm nào được thêm.</div>';
@@ -1102,6 +1174,9 @@
           .join("");
       }
 
+      /**
+       * @brief Hiển thị (Vẽ) các điểm đánh dấu (Markers) như A, B, Stops lên bản đồ.
+       */
       function renderPointLayers() {
         state.layers.points.clearLayers();
         if (state.origin) {
@@ -1121,6 +1196,9 @@
         });
       }
 
+      /**
+       * @brief Hiển thị (Vẽ) các đoạn đường cấm (Blocked Segments) lên bản đồ.
+       */
       function renderBlockedLayers() {
         state.layers.blocked.clearLayers();
         state.blockedSegments.forEach((segment) => {
@@ -1148,6 +1226,9 @@
         }
       }
 
+      /**
+       * @brief Render (tô màu cảnh báo) các khu vực đang ùn tắc hoặc ngập úng dựa trên Labels.
+       */
       function renderWarningAreas(labels) {
         state.layers.contextHighlight.clearLayers();
         if (!labels?.length || !state.contextMeta) {
@@ -1163,25 +1244,20 @@
 
         if (congestionFeatures.length) {
           L.geoJSON({ type: "FeatureCollection", features: congestionFeatures }, {
-            style: () => ({
-              color: "#ff8c00",
-              weight: 12,
-              opacity: 0.45,
-            }),
+            style: () => ({ color: "#ff8c00", weight: 12, opacity: 0.45 }),
           }).addTo(state.layers.contextHighlight);
         }
         if (hazardFeatures.length) {
           L.geoJSON({ type: "FeatureCollection", features: hazardFeatures }, {
-            style: () => ({
-              color: "#b43a2b",
-              weight: 2,
-              fillColor: "#f4b183",
-              fillOpacity: 0.32,
-            }),
+            style: () => ({ color: "#b43a2b", weight: 2, fillColor: "#f4b183", fillOpacity: 0.32 }),
           }).addTo(state.layers.contextHighlight);
         }
       }
 
+      /**
+       * @brief Vẽ lộ trình thực tế lên bản đồ và hiển thị thẻ tóm tắt (Summary) kết quả tính toán.
+       * @param {Object} response Dữ liệu Route trả về từ API backend.
+       */
       function renderRoute(response) {
         clearRouteLayers();
         state.currentRoute = response;
@@ -1196,10 +1272,7 @@
               routeBounds.push(subLayer.getBounds());
             }
           });
-          const segmentLabel =
-            segment.kind === "walk"
-              ? "Đi bộ"
-              : segment.line_name || "Tàu CTA";
+          const segmentLabel = segment.kind === "walk" ? "Đi bộ" : segment.line_name || "Tàu CTA";
           layer.bindPopup(
             `<strong>${escapeHtml(segmentLabel)}</strong><br>${escapeHtml(formatDuration(segment.duration_sec))}<br>${escapeHtml(formatDistance(segment.distance_m))}`
           );
@@ -1209,15 +1282,7 @@
             try {
               L.polylineDecorator(layer, {
                 patterns: [
-                  {
-                    offset: 25,
-                    repeat: 60,
-                    symbol: L.Symbol.arrowHead({
-                      pixelSize: 12,
-                      polygon: false,
-                      pathOptions: { stroke: true, weight: 3, opacity: 0.9, color: routeStyle(segment).color }
-                    })
-                  }
+                  { offset: 25, repeat: 60, symbol: L.Symbol.arrowHead({ pixelSize: 12, polygon: false, pathOptions: { stroke: true, weight: 3, opacity: 0.9, color: routeStyle(segment).color } }) }
                 ]
               }).addTo(state.layers.route);
             } catch (e) {
@@ -1266,10 +1331,7 @@
 
         const segmentItems = response.segments
           .map((segment, index) => {
-            const title =
-              segment.kind === "walk"
-                ? "Đi bộ"
-                : segment.line_name || "Tàu CTA";
+            const title = segment.kind === "walk" ? "Đi bộ" : segment.line_name || "Tàu CTA";
             const lineColor = segment.kind === "rail" ? routeStyle(segment).color : null;
             return `
               <article class="route-item">
@@ -1336,6 +1398,9 @@
         `;
       }
 
+      /**
+       * @brief Hàm đẩy tọa độ vào danh sách Điểm Dừng (Stops) và gọi render cập nhật giao diện.
+       */
       function addStop(point) {
         state.stops.push(point);
         if (el.stopOrderMode.value === "none") {
@@ -1345,6 +1410,9 @@
         renderPointLayers();
       }
 
+      /**
+       * @brief Thêm đoạn đường cấm vào danh sách quản lý dựa vào mảng Start - End.
+       */
       function addBlockedSegment(start, end) {
         const bufferValue = Math.max(10, Math.min(200, Number(el.blockedBuffer.value || 35)));
         state.blockedSegments.push({
@@ -1357,6 +1425,9 @@
         renderBlockedLayers();
       }
 
+      /**
+       * @brief Xóa toàn bộ lựa chọn, điểm dừng, điểm cấm, reset lộ trình và làm sạch màn hình.
+       */
       function resetAll() {
         state.origin = null;
         state.destination = null;
@@ -1372,6 +1443,9 @@
         setStatus("Đã xóa toàn bộ lựa chọn trên bản đồ.", "success");
       }
 
+      /**
+       * @brief Tính toán khoảng cách (theo đơn vị mét) từ 1 điểm đến 1 đoạn đường (segment).
+       */
       function distanceToSegmentMeters(pt, a, b) {
         const latScale = 111132;
         const lonScale = 111132 * Math.cos(pt.lat * Math.PI / 180);
@@ -1395,6 +1469,9 @@
         return Math.sqrt((px - projX)*(px - projX) + (py - projY)*(py - projY));
       }
 
+      /**
+       * @brief Tìm và trả về đoạn đường sắt (CTA Rail) gần với tọa độ vừa click nhất.
+       */
       function findNearestRailSegment(point, maxDistMeters = 30) {
         if (!state.railMeta || !state.railMeta.lines) return null;
         let nearest = null;
@@ -1422,6 +1499,10 @@
         return nearest;
       }
 
+      /**
+       * @brief Trình xử lý sự kiện trung tâm (Main Event Handler) khi người dùng Click lên bản đồ.
+       * @details Điều hướng click dựa vào editMode: Cắm cờ đi/đến, thêm điểm dừng, hoặc API tìm/chặn đường cấm.
+       */
       function handleMapClick(event) {
         const point = { lat: event.latlng.lat, lon: event.latlng.lng };
         if (!pointInFeatureCollection(point.lat, point.lon, state.boundaryMeta.feature_collection)) {
@@ -1520,6 +1601,9 @@
           });
       }
 
+      /**
+       * @brief Thu thập cấu hình người dùng và gọi API POST lên `/api/route` để lấy đường đi.
+       */
       async function requestRoute() {
         if (!state.origin || !state.destination) {
           setStatus("Bạn cần chọn đủ điểm đầu A và điểm cuối B trước khi tính lộ trình.", "error");
@@ -1560,6 +1644,9 @@
         }
       }
 
+      /**
+       * @brief Gán sự kiện EventListener cho các nút Xóa item trên danh sách sidebar.
+       */
       function bindListActions() {
         el.stopList.addEventListener("click", (event) => {
           const button = event.target.closest("[data-stop-remove]");
@@ -1592,6 +1679,9 @@
       let isLoadingPois = false;
       const POI_ZOOM_THRESHOLD = 15; // Chỉ tải POI khi zoom gần để tránh quá tải
 
+      /**
+       * @brief Tải dữ liệu POIs (Quán cafe, nhà hàng) từ Overpass API dựa vào chế độ Viewport Zoom.
+       */
       async function fetchPOIs() {
         if (!state.map || !state.layers.cafePoi || !state.layers.restaurantPoi) return;
         const zoom = state.map.getZoom();
@@ -1702,11 +1792,17 @@ ${queryNodes}          );
         }
       }
 
+      /**
+       * @brief Hàm debounce để tối ưu hiệu năng gọi render Marker / POI khi người dùng di chuyển hoặc zoom bản đồ.
+       */
       function handleMapMove() {
         if (poiTimeout) clearTimeout(poiTimeout);
         poiTimeout = setTimeout(fetchPOIs, 600);
       }
 
+      /**
+       * @brief Hàm Khởi tạo ứng dụng, map tiles, layers và Fetch Data ban đầu từ Backend.
+       */
       async function init() {
         try {
           setStatus("Đang tải dữ liệu ranh giới, CTA rail và các yếu tố ngữ cảnh...", "warn");
@@ -1760,11 +1856,7 @@ ${queryNodes}          );
           state.map.setMaxBounds(bounds.pad(1.0));
 
           L.geoJSON(boundaryMeta.feature_collection, {
-            style: () => ({
-              color: "#1f2a24",
-              weight: 3,
-              fillOpacity: 0,
-            }),
+            style: () => ({ color: "#1f2a24", weight: 3, fillOpacity: 0 }),
           }).addTo(state.layers.boundary);
 
           const maskOuter = [
@@ -1801,19 +1893,10 @@ ${queryNodes}          );
             let dist = index * step;
             let lat, lon;
             
-            if (dist <= w) {
-              lat = minLat;
-              lon = minLon + dist;
-            } else if (dist <= w + h) {
-              lat = minLat + (dist - w);
-              lon = maxLon;
-            } else if (dist <= 2*w + h) {
-              lat = maxLat;
-              lon = maxLon - (dist - (w + h));
-            } else {
-              lat = maxLat - (dist - (2*w + h));
-              lon = minLon;
-            }
+            if (dist <= w) { lat = minLat; lon = minLon + dist; }
+            else if (dist <= w + h) { lat = minLat + (dist - w); lon = maxLon; }
+            else if (dist <= 2*w + h) { lat = maxLat; lon = maxLon - (dist - (w + h)); }
+            else { lat = maxLat - (dist - (2*w + h)); lon = minLon; }
             
             const icon = L.divIcon({
               className: 'wc-flag-icon',
@@ -1826,7 +1909,6 @@ ${queryNodes}          );
           
           function updateFlagScale() {
             const zoom = state.map.getZoom();
-            // Scale flags geographically (base zoom 11 = 120px)
             const size = 120 * Math.pow(2, zoom - 11);
             document.documentElement.style.setProperty('--flag-size', size + 'px');
           }
@@ -1848,34 +1930,19 @@ ${queryNodes}          );
           const imgMaxLon = centerLon + imgDegreeWidth / 2;
 
           state.layers.wcBg = L.imageOverlay('wc-bg.jpg', [[imgMinLat, imgMinLon], [imgMaxLat, imgMaxLon]], {
-            pane: 'wcBgPane',
-            opacity: 0.4,
-            interactive: false
+            pane: 'wcBgPane', opacity: 0.4, interactive: false
           });
 
           L.geoJSON(railMeta.lines, {
-            style: (feature) => ({
-              color: `#${feature.properties?.route_color || "666666"}`,
-              weight: 2,
-              opacity: 0.92,
-            }),
+            style: (feature) => ({ color: `#${feature.properties?.route_color || "666666"}`, weight: 2, opacity: 0.92 }),
           }).addTo(state.layers.rail);
 
           L.geoJSON(contextMeta.congestion_corridors, {
-            style: () => ({
-              color: "#ff8c00",
-              weight: 8,
-              opacity: 0.25,
-            }),
+            style: () => ({ color: "#ff8c00", weight: 8, opacity: 0.25 }),
           }).addTo(state.layers.contextBase);
 
           L.geoJSON(contextMeta.hazard_zones, {
-            style: () => ({
-              color: "#c96e28",
-              weight: 1,
-              fillColor: "#f4d2a8",
-              fillOpacity: 0.22,
-            }),
+            style: () => ({ color: "#c96e28", weight: 1, fillColor: "#f4d2a8", fillOpacity: 0.22 }),
           }).addTo(state.layers.contextBase);
 
           state.map.on("click", handleMapClick);
@@ -1905,6 +1972,10 @@ ${queryNodes}          );
       });
       
       let searchTimeout;
+
+      /**
+       * @brief Thiết lập thanh tìm kiếm (Autocomplete) Nominatim cho Điểm Đầu và Điểm Cuối.
+       */
       function bindSearchActions() {
         const setupSearch = (inputEl, resultsEl, type) => {
           inputEl.addEventListener("input", (e) => {
@@ -1982,6 +2053,7 @@ ${queryNodes}          );
         setupSearch(el.originInput, el.originResults, 'origin');
         setupSearch(el.destInput, el.destResults, 'dest');
       }
+
       el.clearBlockedBtn.addEventListener("click", () => {
         state.blockedSegments = [];
         state.pendingBlockedPoint = null;
@@ -1990,6 +2062,7 @@ ${queryNodes}          );
         clearRouteLayers();
         setStatus("Đã xóa toàn bộ đoạn đường cấm.", "success");
       });
+      
       if (el.autoShowAmenitiesInput) el.autoShowAmenitiesInput.addEventListener("change", fetchPOIs);
       el.forceCafeInput.addEventListener("change", fetchPOIs);
       el.forceRestaurantInput.addEventListener("change", fetchPOIs);
