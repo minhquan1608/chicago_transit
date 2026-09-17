@@ -1,3 +1,13 @@
+"""
+@file test_api.py
+@brief Kịch bản kiểm thử (Unit Tests) cho các API của Chicago Route Planner.
+@author Lê Phước Minh Quân & others
+@date 2026-09-18
+@details File này sử dụng FastAPI TestClient để kiểm thử tự động các điểm cuối (endpoints) của API.
+         Sử dụng các lớp giả lập (Mock/Fake Classes) để cách ly logic định tuyến (A*, GA) 
+         khỏi việc kiểm tra luồng hoạt động của API, đảm bảo tốc độ chạy test nhanh gọn.
+"""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -8,7 +18,16 @@ from backend.api.main import create_app
 from backend.api.models import Coordinate, RouteContext, RouteResponse, RouteSegment, RouteSummary, RouteTotals
 
 
+# ==========================================
+# CÁC LỚP GIẢ LẬP DỮ LIỆU (MOCK CLASSES)
+# ==========================================
+
 class FakeBoundary:
+    """
+    @brief Lớp giả lập ranh giới địa lý của thành phố Chicago.
+    @details Cung cấp một bounding box và đa giác (polygon) cố định để phục vụ cho các bài test
+             kiểm tra điểm đầu/cuối có nằm trong thành phố hay không.
+    """
     bbox = [-87.9, 41.6, -87.5, 42.0]
     feature_collection = {
         "type": "FeatureCollection",
@@ -27,16 +46,25 @@ class FakeBoundary:
     generated_at = "2026-04-07T00:00:00+00:00"
 
     def contains(self, lat: float, lon: float) -> bool:
+        """
+        @brief Kiểm tra tọa độ có nằm trong ranh giới giả lập hay không.
+        """
         return 41.6 <= lat <= 42.0 and -87.9 <= lon <= -87.5
 
 
 class FakeRailAssets:
+    """
+    @brief Lớp giả lập cơ sở dữ liệu hệ thống đường sắt (CTA).
+    """
     lines = {"type": "FeatureCollection", "metadata": {"generated_at": "2026-04-07T00:00:00+00:00"}, "features": []}
     stations = []
     generated_at = "2026-04-07T00:00:00+00:00"
 
 
 class FakeContextualFactors:
+    """
+    @brief Lớp giả lập các yếu tố ngữ cảnh môi trường (giao thông, thời tiết, ngập lụt).
+    """
     generated_at = "2026-04-07T00:00:00+00:00"
     time_profiles = [{"id": "morning_peak", "label": "Cao điểm sáng"}]
     congestion_corridors = {"type": "FeatureCollection", "features": []}
@@ -44,15 +72,27 @@ class FakeContextualFactors:
 
 
 class FakePlanner:
+    """
+    @brief Lớp giả lập bộ định tuyến luôn trả về lỗi.
+    @details Dùng để kiểm thử các kịch bản ngoại lệ (ví dụ: tọa độ nằm ngoài thành phố).
+    """
     async def plan(self, origin, destination, profile, depart_at, **kwargs):
         raise ValueError("Cả hai điểm phải nằm trong ranh giới thành phố Chicago.")
 
 
 class SuccessfulPlanner:
+    """
+    @brief Lớp giả lập bộ định tuyến thành công.
+    @details Dùng để kiểm thử các kịch bản người dùng tìm đường hợp lệ.
+             Lớp này lưu lại lịch sử các tham số được gọi (tại self.calls) để so sánh (assert) trong các bài test.
+    """
     def __init__(self):
         self.calls = []
 
     async def plan(self, origin, destination, profile, depart_at, **kwargs):
+        """
+        @brief Trả về một RouteResponse giả lập với lộ trình đi bộ hợp lệ.
+        """
         self.calls.append(
             {
                 "origin": origin,
@@ -88,7 +128,15 @@ class SuccessfulPlanner:
         )
 
 
+# ==========================================
+# CÁC HÀM KIỂM THỬ API (UNIT TESTS)
+# ==========================================
+
 def test_boundary_meta_endpoint():
+    """
+    @brief Kiểm thử endpoint `/api/meta/boundary`.
+    @details Đảm bảo API trả về đúng mã trạng thái HTTP 200 và dữ liệu bounding box chính xác.
+    """
     app = create_app(
         boundary=FakeBoundary(),
         rail_assets=FakeRailAssets(),
@@ -102,6 +150,10 @@ def test_boundary_meta_endpoint():
 
 
 def test_route_endpoint_returns_400_for_invalid_city_points():
+    """
+    @brief Kiểm thử lỗi 400 Bad Request trên endpoint `/api/route`.
+    @details Đảm bảo API báo lỗi khi tọa độ truyền vào nằm ngoài ranh giới thành phố.
+    """
     app = create_app(
         boundary=FakeBoundary(),
         rail_assets=FakeRailAssets(),
@@ -115,6 +167,10 @@ def test_route_endpoint_returns_400_for_invalid_city_points():
 
 
 def test_context_meta_endpoint():
+    """
+    @brief Kiểm thử endpoint `/api/meta/context`.
+    @details Đảm bảo API trả về đúng thông tin ngữ cảnh môi trường hiện tại (vd: "morning_peak").
+    """
     app = create_app(
         boundary=FakeBoundary(),
         rail_assets=FakeRailAssets(),
@@ -128,6 +184,12 @@ def test_context_meta_endpoint():
 
 
 def test_post_route_passes_stops_and_blocked_segments():
+    """
+    @brief Kiểm thử luồng POST đầy đủ trên endpoint `/api/route`.
+    @details Đảm bảo API nhận diện và truyền đúng các tham số nâng cao (điểm dừng - stops, 
+             chiến lược sắp xếp - stop_order_mode, và các đoạn đường cấm - blocked_segments) 
+             vào bộ định tuyến Planner (thuật toán GA và A*).
+    """
     planner = SuccessfulPlanner()
     app = create_app(
         boundary=FakeBoundary(),
