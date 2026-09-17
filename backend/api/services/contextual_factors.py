@@ -1,3 +1,14 @@
+"""
+@file context_store.py
+@brief Quản lý các yếu tố ngữ cảnh môi trường (giao thông, thời tiết, ngập úng) cho lộ trình.
+@author Lê Phước Minh Quân
+@date 2026-09-18
+@details File này cung cấp lớp ContextualFactorsStore để tải dữ liệu ngữ cảnh từ JSON, 
+         tính toán hệ số thời gian (time profiles), xác định mức độ trùng lặp hình học 
+         của các chặng đường đi bộ với các hành lang ùn tắc hoặc vùng cảnh báo thiên tai, 
+         từ đó cộng thêm thời gian phạt (penalty) rủi ro tương ứng vào tổng chi phí lộ trình.
+"""
+
 from __future__ import annotations
 
 import json
@@ -14,10 +25,22 @@ from backend.api.services.rail_assets import haversine_meters
 
 
 def meters_to_degrees(meters: float) -> float:
+    """
+    @brief Chuyển đổi khoảng cách từ mét sang độ địa lý (degrees).
+    @details Sử dụng hệ số xấp xỉ quy đổi cơ bản (111,000 mét tương đương 1 độ trên bề mặt Trái Đất).
+    @param meters Khoảng cách tính bằng mét.
+    @return Giá trị tương đương tính bằng độ (degrees).
+    """
     return float(meters) / 111_000
 
 
 def segment_geometry(segment: Any) -> LineString | Point:
+    """
+    @brief Trích xuất đối tượng hình học (Geometry) từ một phân đoạn (segment) lộ trình.
+    @details Hỗ trợ phân tích đa dạng định dạng từ GeoJSON coordinates cho đến cấu trúc start/end tọa độ.
+    @param segment Đối tượng đoạn đường cần lấy hình học.
+    @return LineString hoặc Point đại diện cho hình học của đoạn.
+    """
     coordinates = (getattr(segment, "geometry", {}) or {}).get("coordinates") or []
     if len(coordinates) >= 2:
         return LineString(coordinates)
@@ -33,6 +56,11 @@ def segment_geometry(segment: Any) -> LineString | Point:
 
 
 def segment_distance_m(segment: Any) -> float:
+    """
+    @brief Tính toán tổng chiều dài (mét) của một phân đoạn lộ trình.
+    @param segment Đối tượng đoạn đường.
+    @return Chiều dài tính bằng mét.
+    """
     raw = float(getattr(segment, "distance_m", 0) or 0)
     if raw > 0:
         return raw
@@ -47,6 +75,12 @@ def segment_distance_m(segment: Any) -> float:
 
 
 def overlap_ratio(geometry: LineString | Point, masked_geometry: Any) -> float:
+    """
+    @brief Tính tỷ lệ giao cắt/trùng lặp giữa hình học của đoạn đường và vùng bị che khuất/cảnh báo.
+    @param geometry Hình học của phân đoạn lộ trình.
+    @param masked_geometry Hình học của vùng hành lang ùn tắc hoặc khu vực nguy hiểm (đã buffer).
+    @return Tỷ lệ trùng lặp từ 0.0 đến 1.0.
+    """
     if geometry.is_empty or masked_geometry.is_empty:
         return 0.0
     if isinstance(geometry, Point):
@@ -66,39 +100,68 @@ def overlap_ratio(geometry: LineString | Point, masked_geometry: Any) -> float:
 
 @dataclass
 class ContextualFactorsStore:
-    asset_path: Path
-    timezone_name: str
+    """
+    @brief Kho lưu trữ và đánh giá các yếu tố ngữ cảnh ngoại cảnh.
+    @details Đọc cấu hình từ file asset JSON, xây dựng sẵn các vùng không gian đệm (buffer zones) 
+             cho hành lang ùn tắc và khu vực ngập úng/thiên tai để tăng tốc độ tính toán hệ số phạt.
+    """
+    asset_path: Path      # Đường dẫn đến file dữ liệu ngữ cảnh (JSON)
+    timezone_name: str    # Tên múi giờ (ví dụ: "America/Chicago")
 
     def _load_raw(self) -> dict[str, Any]:
+        """
+        @brief Đọc dữ liệu thô từ tệp JSON ngữ cảnh.
+        """
         with self.asset_path.open("r", encoding="utf-8") as fh:
             return json.load(fh)
 
     @cached_property
     def raw(self) -> dict[str, Any]:
+        """
+        @brief Lưu cache dữ liệu JSON thô.
+        """
         return self._load_raw()
 
     @cached_property
     def metadata(self) -> dict[str, Any]:
+        """
+        @brief Trích xuất thông tin metadata từ file ngữ cảnh.
+        """
         return self.raw.get("metadata", {})
 
     @cached_property
     def generated_at(self) -> str:
+        """
+        @brief Trích xuất thời điểm khởi tạo dữ liệu ngữ cảnh.
+        """
         return self.metadata.get("generated_at", "")
 
     @cached_property
     def time_profiles(self) -> list[dict[str, Any]]:
+        """
+        @brief Danh sách các khung thời gian giao thông (vd: giờ cao điểm, giờ bình thường).
+        """
         return list(self.raw.get("time_profiles", []))
 
     @cached_property
     def congestion_corridors(self) -> dict[str, Any]:
+        """
+        @brief GeoJSON chứa các hành lang ùn tắc giao thông.
+        """
         return self.raw.get("congestion_corridors", {"type": "FeatureCollection", "features": []})
 
     @cached_property
     def hazard_zones(self) -> dict[str, Any]:
+        """
+        @brief GeoJSON chứa các vùng cảnh báo nguy hiểm (ngập úng, ngập tuyết).
+        """
         return self.raw.get("hazard_zones", {"type": "FeatureCollection", "features": []})
 
     @cached_property
     def _prepared_corridors(self) -> list[dict[str, Any]]:
+        """
+        @brief Chuẩn bị sẵn hình học và bộ đệm (buffer) cho các hành lang ùn tắc để tối ưu hiệu năng.
+        """
         prepared: list[dict[str, Any]] = []
         for feature in self.congestion_corridors.get("features", []):
             props = feature.get("properties", {})
@@ -117,6 +180,9 @@ class ContextualFactorsStore:
 
     @cached_property
     def _prepared_hazards(self) -> list[dict[str, Any]]:
+        """
+        @brief Chuẩn bị sẵn hình học và bộ đệm cho các vùng cảnh báo thiên tai/ngập úng.
+        """
         prepared: list[dict[str, Any]] = []
         for feature in self.hazard_zones.get("features", []):
             props = feature.get("properties", {})
@@ -136,9 +202,17 @@ class ContextualFactorsStore:
 
     @property
     def timezone(self) -> ZoneInfo:
+        """
+        @brief Trả về đối tượng ZoneInfo của múi giờ cấu hình.
+        """
         return ZoneInfo(self.timezone_name)
 
     def active_time_profile(self, depart_at) -> dict[str, Any]:
+        """
+        @brief Xác định khung giờ giao thông tương ứng với thời điểm khởi hành (depart_at).
+        @param depart_at Thời điểm khởi hành (datetime).
+        @return Dictionary chứa thông tin profile khung giờ (vd hệ số walk_multiplier).
+        """
         local = depart_at.astimezone(self.timezone)
         hour = local.hour
         for profile in self.time_profiles:
@@ -156,6 +230,13 @@ class ContextualFactorsStore:
         }
 
     def evaluate_candidate(self, candidate: Any) -> dict[str, Any]:
+        """
+        @brief Đánh giá toàn diện các yếu tố ngữ cảnh tác động lên một lộ trình đề xuất (candidate).
+        @details Tính toán thời gian phạt do kẹt xe (traffic penalty) và do thời tiết/ngập úng (weather penalty), 
+                 đồng thời thu thập các cảnh báo liên quan.
+        @param candidate Đối tượng lộ trình cần đánh giá.
+        @return Dictionary chứa kết quả chấm điểm rủi ro và các thông điệp cảnh báo.
+        """
         profile = self.active_time_profile(candidate.depart_at)
         walk_multiplier = float(profile.get("walk_multiplier", 1.0))
 
