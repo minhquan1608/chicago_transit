@@ -1,3 +1,14 @@
+"""
+@file routing.py
+@brief Quản lý logic định tuyến trung tâm và giao tiếp với lõi C++ (Router).
+@author Lê Phước Minh Quân & others
+@date 2026-09-18
+@details File này chứa cấu trúc lớp RoutePlanner đóng vai trò như một bộ điều phối (orchestrator). 
+         Nó tiếp nhận yêu cầu từ API (điểm đầu, đích, điểm dừng, đoạn cấm), chuyển đổi định dạng, 
+         gọi tiến trình con C++ để tìm đường (A*/GA), phân tích kết quả JSON trả về, 
+         áp dụng các hệ số phạt môi trường (từ ContextualFactorsStore) và xây dựng Response cuối cùng.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -13,7 +24,11 @@ from backend.api.services.boundary import ChicagoBoundary
 from backend.api.services.contextual_factors import ContextualFactorsStore
 from backend.api.services.rail_assets import RailAssetStore
 
+# ==========================================
+# CẤU HÌNH & HÀM TIỆN ÍCH
+# ==========================================
 
+# Bảng dịch tên các tuyến tàu CTA sang tiếng Việt
 LINE_LABELS_VI = {
     "Red": "Tuyến Đỏ",
     "Blue": "Tuyến Xanh Dương",
@@ -27,22 +42,36 @@ LINE_LABELS_VI = {
 
 
 def localized_line_name(line_id: str | None, fallback: str | None) -> str | None:
+    """
+    @brief Trả về tên tiếng Việt của tuyến tàu dựa vào ID.
+    @param line_id Mã ID tuyến (vd: "Red").
+    @param fallback Tên dự phòng nếu không tìm thấy trong từ điển.
+    """
     if line_id and line_id in LINE_LABELS_VI:
         return LINE_LABELS_VI[line_id]
     return fallback
 
 
 def route_id_tail(gtfs_id: str | None) -> str | None:
+    """
+    @brief Trích xuất phần đuôi của chuỗi GTFS route_id.
+    """
     if not gtfs_id:
         return None
     return gtfs_id.split(":")[-1]
 
 
 def to_coordinate(lat: float, lon: float) -> Coordinate:
+    """
+    @brief Chuyển đổi cặp tọa độ float sang object Coordinate (Pydantic model).
+    """
     return Coordinate(lat=lat, lon=lon)
 
 
 def dedupe_keep_order(values: list[str]) -> list[str]:
+    """
+    @brief Xóa phần tử trùng lặp trong list nhưng vẫn giữ nguyên thứ tự ban đầu.
+    """
     seen: set[str] = set()
     output: list[str] = []
     for value in values:
@@ -54,11 +83,22 @@ def dedupe_keep_order(values: list[str]) -> list[str]:
 
 
 def blocked_buffer_degrees(meters: float) -> float:
+    """
+    @brief Chuyển đổi bán kính phạt (meters) sang độ để dùng trong thuật toán hình học (Shapely).
+    """
     return float(meters) / 111_000
 
 
+# ==========================================
+# DATA CLASSES & MÔ HÌNH TRẠNG THÁI
+# ==========================================
+
 @dataclass(slots=True)
 class NullContextualFactors:
+    """
+    @brief Lớp giả (Null Object Pattern) dùng khi hệ thống không có dữ liệu ngữ cảnh môi trường.
+    @details Trả về các hệ số rủi ro = 0, đảm bảo tiến trình định tuyến vẫn chạy được mà không bị crash.
+    """
     generated_at: str = ""
     time_profiles: list[dict[str, Any]] = field(default_factory=list)
     congestion_corridors: dict[str, Any] = field(default_factory=lambda: {"type": "FeatureCollection", "features": []})
@@ -80,6 +120,10 @@ class NullContextualFactors:
 
 @dataclass(slots=True)
 class BlockedRoad:
+    """
+    @brief Đại diện cho cấu trúc của một đoạn đường cấm đã được parse.
+    @details Cung cấp các thuộc tính lazy-loaded để sinh LineString Geometry và Buffer Geometry.
+    """
     start: tuple[float, float]
     end: tuple[float, float]
     label: str
@@ -99,6 +143,10 @@ class BlockedRoad:
 
 @dataclass(slots=True)
 class Candidate:
+    """
+    @brief Đại diện cho một ứng viên lộ trình (đã được C++ tính xong mảng tọa độ thô).
+    @details Lưu giữ các thuộc tính, segment và phương thức để tính toán tổng thời gian/quãng đường.
+    """
     profile: Literal["walk"]
     strategy: Literal["walk_only", "walk_rail"]
     segments: list[RouteSegment]
@@ -126,6 +174,9 @@ class Candidate:
         return round(sum(float(segment.distance_m or 0) for segment in self.segments), 1)
 
     def totals(self) -> RouteTotals:
+        """
+        @brief Gom nhóm và tính toán tổng số liệu theo từng loại phương tiện (walk, rail).
+        """
         walk_sec = sum(segment.duration_sec for segment in self.segments if segment.kind == "walk")
         rail_sec = sum(segment.duration_sec for segment in self.segments if segment.kind == "rail")
         walk_distance_m = round(sum(float(segment.distance_m or 0) for segment in self.segments if segment.kind == "walk"), 1)
@@ -143,8 +194,17 @@ class Candidate:
         )
 
 
+# ==========================================
+# ROUTE PLANNER (LỚP ĐIỀU PHỐI TRUNG TÂM)
+# ==========================================
+
 @dataclass(slots=True)
 class RoutePlanner:
+    """
+    @brief Trình lập kế hoạch và định tuyến.
+    @details Kết nối giữa các yêu cầu API, dữ liệu tài nguyên (Rail, Boundary), môi trường (ContextualFactors)
+             và tiến trình C++ (A* / GA). 
+    """
     boundary: ChicagoBoundary
     rail_assets: RailAssetStore
     timezone_name: str
@@ -166,10 +226,20 @@ class RoutePlanner:
         stop_order_mode: Literal["none", "ordered", "optimize"] = "none",
         blocked_segments: list[dict[str, Any]] | None = None,
     ) -> RouteResponse:
+        """
+        @brief Phương thức cốt lõi xử lý yêu cầu tìm đường đi.
+        @details Bước 1: Kiểm tra ngoại lệ ranh giới (Boundary check).
+                 Bước 2: Chuẩn bị chuỗi dữ liệu (stdin) đẩy xuống tiến trình C++.
+                 Bước 3: Gọi file thực thi `backend/router`.
+                 Bước 4: Parse kết quả JSON do C++ trả về.
+                 Bước 5: Thêm thông tin trạm (Station Info) và xây dựng RouteSegment.
+                 Bước 6: Chấm điểm rủi ro môi trường (Contextual Factors).
+        """
         depart_local = self._normalize_depart_at(depart_at)
         stops = stops or []
         blocked_roads = self._normalize_blocked_segments(blocked_segments or [])
 
+        # Kiểm tra tính hợp lệ của tọa độ trước khi gọi C++
         all_points = [origin, destination, *stops]
         for point in all_points:
             if not self.boundary.contains(*point):
@@ -180,10 +250,12 @@ class RoutePlanner:
         from pathlib import Path
         from datetime import timedelta
         from backend.api.config import Settings
+        
         settings = Settings.from_env()
         executable = str(Path("backend/router").resolve())
         graph_file = str(settings.assets_dir / "data_graph.txt")
         
+        # Xây dựng chuỗi đầu vào theo cấu trúc file C++ main.cpp yêu cầu
         input_data = f"{origin[0]} {origin[1]} {destination[0]} {destination[1]}\n"
         input_data += f"{len(stops)}\n"
         for stop in stops:
@@ -197,6 +269,8 @@ class RoutePlanner:
             input_data += f"{br.start[0]} {br.start[1]} {br.end[0]} {br.end[1]} {br.buffer_m}\n"
             
         import subprocess
+        
+        # Giao tiếp với thuật toán C++
         result = subprocess.run(
             [executable, graph_file],
             input=input_data.encode(),
@@ -254,19 +328,21 @@ class RoutePlanner:
             
             current_coords = [(origin[1], origin[0])]
             
+            # Quét từng điểm do C++ trả về để gộp thành các Segment (chặng) lớn
             for pt in path_nodes:
                 pt_type = pt.get("type", current_type)
                 if pt_type == -1: pt_type = current_type
                 
+                # Cắt segment khi chuyển từ đi bộ (0) sang tàu (1) hoặc ngược lại
                 if pt_type != current_type and len(current_coords) > 0:
-                    # Chốt segment cũ
                     dist = sum(haversine(current_coords[i][1], current_coords[i][0], current_coords[i+1][1], current_coords[i+1][0]) for i in range(len(current_coords)-1))
                     kind = "rail" if current_type >= 1 else "walk"
                     dur = int(dist / 15.0) if kind == "rail" else int(dist / 1.3)
+                    
                     if kind == "rail":
                         stations_passed = sum(1 for lon, lat in current_coords if get_station_info(lat, lon))
                         if stations_passed > 1:
-                            dur += (stations_passed - 1) * 30
+                            dur += (stations_passed - 1) * 30  # Cộng 30 giây thời gian dừng cho mỗi trạm
                     
                     current_depart = depart_local if not segments else segments[-1].arrival_time
                     current_arrive = current_depart + timedelta(seconds=dur)
@@ -306,12 +382,12 @@ class RoutePlanner:
                         line_color=line_color
                     ))
                     
-                    # Bắt đầu segment mới với điểm cuối của segment cũ và điểm hiện tại
                     current_coords = [current_coords[-1], (pt["lon"], pt["lat"])]
                     current_type = pt_type
                 else:
                     current_coords.append((pt["lon"], pt["lat"]))
             
+            # Xử lý đoạn kết thúc
             if current_coords[-1] != (destination[1], destination[0]):
                 current_coords.append((destination[1], destination[0]))
                 
@@ -373,12 +449,17 @@ class RoutePlanner:
             stop_order_indices=stop_order_indices,
             blocked_segment_count=len(blocked_roads)
         )
+        # Chấm điểm thời tiết và kẹt xe
         self._apply_context(candidate)
 
+        # Đóng gói kết quả thành Pydantic Model trả về cho Client
         return self._serialize(candidate)
 
 
     def _normalize_blocked_segments(self, blocked_segments: list[dict[str, Any]]) -> list[BlockedRoad]:
+        """
+        @brief Chuẩn hóa payload mảng các đoạn cấm đầu vào thành cấu trúc BlockedRoad.
+        """
         normalized: list[BlockedRoad] = []
         for index, item in enumerate(blocked_segments, start=1):
             start = item.get("start") or {}
@@ -399,6 +480,9 @@ class RoutePlanner:
 
 
     def _normalize_depart_at(self, depart_at: datetime | None) -> datetime:
+        """
+        @brief Chuẩn hóa thời điểm khởi hành về múi giờ Chicago (hoặc lấy giờ hiện tại nếu rỗng).
+        """
         if depart_at is None:
             return datetime.now(self.timezone)
         if depart_at.tzinfo is None:
@@ -407,6 +491,9 @@ class RoutePlanner:
 
 
     def _apply_context(self, candidate: Candidate) -> None:
+        """
+        @brief Gán kết quả chấm điểm rủi ro môi trường vào object Candidate.
+        """
         context = self.contextual_factors.evaluate_candidate(candidate)
         candidate.context_penalty_sec = int(context["context_penalty_sec"])
         candidate.evaluated_sec = candidate.total_sec + candidate.context_penalty_sec
@@ -421,6 +508,10 @@ class RoutePlanner:
         candidate.warnings = dedupe_keep_order(candidate.warnings)
 
     def _serialize(self, candidate: Candidate) -> RouteResponse:
+        """
+        @brief Chuyển đổi (Serialize) đối tượng Candidate thành định dạng Model chuẩn (RouteResponse)
+               sẵn sàng trả về làm API Response (JSON) cho frontend.
+        """
         lines_used = []
         for segment in candidate.segments:
             if segment.kind == "rail" and segment.line_name and segment.line_name not in lines_used:
@@ -461,4 +552,3 @@ class RoutePlanner:
             },
             inside_city=True,
         )
-
