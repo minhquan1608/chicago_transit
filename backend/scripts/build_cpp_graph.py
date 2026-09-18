@@ -1,4 +1,16 @@
 #!/usr/bin/env python3
+"""
+@file build_graph.py
+@brief Kịch bản tự động tải và xây dựng dữ liệu đồ thị (Graph) mạng lưới giao thông Chicago.
+@author Lê Phước Minh Quân & others
+@date 2026-09-18
+@details Script này sử dụng thư viện OSMnx để tải cấu trúc đường phố (mạng lưới 'drive' để tối ưu).
+         Sau đó, nó tích hợp thêm dữ liệu các tuyến và trạm tàu (CTA Rail) từ file GeoJSON,
+         nối các trạm tàu vào mạng lưới đường phố đi bộ (Transfer edges), và tính toán 
+         khoảng cách/thời gian di chuyển. Cuối cùng, xuất toàn bộ ra file `data_graph.txt` 
+         để lõi C++ (Router) có thể đọc và chạy thuật toán A*/GA.
+"""
+
 import os
 import networkx as nx
 import math
@@ -17,7 +29,16 @@ ASSETS_DIR = ROOT_DIR / "data" / "assets"
 GRAPH_FILE = ASSETS_DIR / "data_graph.txt"
 RAIL_STATIONS_FILE = ASSETS_DIR / "cta_rail_stations.json"
 
-def haversine(lat1, lon1, lat2, lon2):
+
+def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """
+    @brief Tính khoảng cách đường chim bay giữa hai điểm (Kinh độ, Vĩ độ) trên mặt cầu.
+    @param lat1 Vĩ độ điểm 1.
+    @param lon1 Kinh độ điểm 1.
+    @param lat2 Vĩ độ điểm 2.
+    @param lon2 Kinh độ điểm 2.
+    @return Khoảng cách thực tế tính bằng mét (meters).
+    """
     R = 6371000  # meters
     phi1 = math.radians(lat1)
     phi2 = math.radians(lat2)
@@ -27,7 +48,18 @@ def haversine(lat1, lon1, lat2, lon2):
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return R * c
 
+
 def build_graph():
+    """
+    @brief Hàm thực thi chính để tải, xử lý và lưu đồ thị giao thông.
+    @details
+      1. Tải mạng lưới đường phố Chicago từ OpenStreetMap.
+      2. Lọc lấy thành phần liên thông mạnh lớn nhất (đảm bảo không có node mồ côi).
+      3. Đọc dữ liệu hệ thống trạm tàu và tuyến tàu CTA.
+      4. Tạo các cạnh trung chuyển (transfer edges) giữa đường phố và trạm tàu.
+      5. Tạo các cạnh đường sắt (rail edges) nối các trạm dọc theo từng tuyến.
+      6. Ghi toàn bộ danh sách Đỉnh (Nodes) và Cạnh (Edges) ra file văn bản chuẩn.
+    """
     print("Đang tải dữ liệu mạng lưới đường phố Chicago (chỉ lấy đường chính để tối ưu)...")
     # Lấy dữ liệu đường sá. network_type='drive' sẽ nhẹ hơn 'walk' rất nhiều, phù hợp để thử nghiệm A* chạy nhanh.
     # Trong môi trường thực tế, nếu RAM lớn có thể đổi thành 'all'.
@@ -210,7 +242,7 @@ def build_graph():
     
     ASSETS_DIR.mkdir(parents=True, exist_ok=True)
     with open(GRAPH_FILE, 'w') as f:
-        # Dòng 1: N M
+        # Dòng 1: N M (Số Node, Số Edge)
         f.write(f"{total_nodes} {total_edges}\n")
         
         # In các Node đường bộ: ID Lat Lon
@@ -230,6 +262,7 @@ def build_graph():
             f.write(f"{u} {v} {dist:.2f} {time_sec:.2f} {t}\n")
 
     print("Hoàn tất!")
+
 
 if __name__ == "__main__":
     build_graph()
