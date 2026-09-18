@@ -1,4 +1,16 @@
-#!/usr/bin/env python3
+"""
+@file setup_assets.py
+@brief Kịch bản tự động tải, chuẩn bị và xây dựng dữ liệu đầu vào (assets) cho ứng dụng.
+@author Lê Phước Minh Quân & others
+@date 2026-09-18
+@details Script này chịu trách nhiệm:
+         1. Tải ranh giới địa lý (Boundary) của Chicago từ Data Portal chính thức (hoặc fallback).
+         2. Tải và giải nén dữ liệu phương tiện công cộng (GTFS) của CTA.
+         3. Dùng Shapely để cắt (clip) các tuyến đường sắt (Shapes) nằm hoàn toàn trong phạm vi Chicago.
+         4. Trích xuất, kết nối danh sách các trạm tàu điện ngầm (Stations) hợp lệ.
+         5. Lưu kết quả ra thư mục `data/assets` phục vụ cho API và lõi C++ tính toán.
+"""
+
 from __future__ import annotations
 
 import csv
@@ -15,30 +27,46 @@ from typing import Any
 
 from shapely.geometry import LineString, Point, mapping, shape
 
+# Cấu hình đường dẫn thư mục lưu trữ
 ROOT = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = ROOT / "data"
 ASSETS_DIR = DATA_DIR / "assets"
 RAW_DIR = DATA_DIR / "raw"
 
+# URL tải dữ liệu định tuyến
 OFFICIAL_BOUNDARY_URL = "https://data.cityofchicago.org/api/views/qqq8-j68g/rows.json?accessType=DOWNLOAD"
 FALLBACK_BOUNDARY_URL = "https://raw.githubusercontent.com/generalpiston/geojson-us-city-boundaries/master/cities/il/chicago.json"
 OFFICIAL_GTFS_URL = "https://www.transitchicago.com/downloads/sch_data/google_transit.zip"
 
 
-
-
 def fetch_json(url: str) -> dict[str, Any]:
+    """
+    @brief Gửi HTTP GET request và phân tích JSON từ URL.
+    @details Bổ sung 'User-Agent' để vượt qua các bộ lọc chống bot cơ bản của các kho lưu trữ.
+    @param url Đường dẫn tải dữ liệu.
+    @return Dictionary (JSON parsed data).
+    """
     request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
     with urllib.request.urlopen(request, timeout=30) as response:
         return json.load(response)
 
 
 def ensure_dirs() -> None:
+    """
+    @brief Đảm bảo các thư mục lưu trữ dữ liệu (assets, raw) đã được tạo sẵn.
+    """
     ASSETS_DIR.mkdir(parents=True, exist_ok=True)
     RAW_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def normalize_boundary(raw: dict[str, Any], source_label: str) -> dict[str, Any]:
+    """
+    @brief Chuẩn hóa đầu vào JSON thô thành đối tượng GeoJSON FeatureCollection.
+    @details Gắn thêm siêu dữ liệu (metadata) như thời gian khởi tạo và nguồn lấy dữ liệu.
+    @param raw Dữ liệu đầu vào chưa chuẩn hóa.
+    @param source_label Chuỗi ghi chú nguồn gốc (official hay fallback).
+    @return Cấu trúc FeatureCollection hợp lệ.
+    """
     generated_at = datetime.now(timezone.utc).isoformat()
 
     if raw.get("type") == "FeatureCollection":
@@ -57,6 +85,11 @@ def normalize_boundary(raw: dict[str, Any], source_label: str) -> dict[str, Any]
 
 
 def build_boundary_asset() -> tuple[dict[str, Any], Any]:
+    """
+    @brief Lấy ranh giới địa lý của Chicago và lưu thành file tĩnh (boundary.geojson).
+    @details Cố gắng tải từ nguồn chính phủ trước, nếu lỗi (do chặn IP/bảo trì) thì chuyển sang GitHub fallback.
+    @return Tuple gồm FeatureCollection (dict) và đối tượng Shapely Geometry của ranh giới.
+    """
     raw = None
     source = "City of Chicago open data"
     try:
@@ -73,11 +106,24 @@ def build_boundary_asset() -> tuple[dict[str, Any], Any]:
 
 
 def load_csv(path: Path) -> list[dict[str, str]]:
+    """
+    @brief Đọc file văn bản dạng CSV / TXT của chuẩn GTFS.
+    @details Bỏ qua BOM (Byte Order Mark) ở UTF-8 bằng encoding `utf-8-sig`.
+    @param path Đường dẫn tới file csv/txt.
+    @return Danh sách các Dictionary đại diện cho từng dòng dữ liệu.
+    """
     with path.open("r", encoding="utf-8-sig", newline="") as fh:
         return list(csv.DictReader(fh))
 
 
 def clip_line_to_boundary(line: LineString, boundary_geometry) -> list[dict[str, Any]]:
+    """
+    @brief Cắt (clip) một tuyến đường (LineString) để chỉ giữ lại phần nằm trong biên giới thành phố.
+    @details Giúp loại bỏ những phân đoạn tàu điện ngầm vượt quá ranh giới định tuyến.
+    @param line Đối tượng hình học tuyến đường cần cắt.
+    @param boundary_geometry Đối tượng hình học ranh giới thành phố.
+    @return Danh sách các phân đoạn hình học (Geometry Dict) đã nằm trọn trong ranh giới.
+    """
     if not line.is_valid or line.is_empty:
         return []
     clipped = line.intersection(boundary_geometry)
@@ -93,12 +139,24 @@ def clip_line_to_boundary(line: LineString, boundary_geometry) -> list[dict[str,
 
 
 def build_rail_assets(boundary_geometry) -> None:
+    """
+    @brief Xử lý dữ liệu định tuyến từ hệ thống GTFS để bóc tách thông tin tàu điện ngầm CTA Rail.
+    @details Bao gồm các bước:
+             1. Lọc các tuyến (routes) có kiểu = 1 (Tàu điện / Subway).
+             2. Ghép hình học quỹ đạo (shapes) và trạm (stops) cho tuyến đó.
+             3. Loại bỏ (clip) phần đường và các ga nằm ngoài lãnh thổ Chicago.
+             4. Xuất mảng file `cta_rail_lines.geojson` và `cta_rail_stations.json`.
+    @param boundary_geometry Ranh giới Chicago để kiểm tra nội hàm.
+    """
+    # 1. Trích xuất tuyến đường (routes) và ID tuyến (trips)
     routes = {row["route_id"]: row for row in load_csv(DATA_DIR / "routes.txt") if row["route_type"] == "1"}
     trips = {row["trip_id"]: row for row in load_csv(DATA_DIR / "trips.txt") if row["route_id"] in routes}
+    
     route_shapes: dict[str, set[str]] = defaultdict(set)
     for trip in trips.values():
         route_shapes[trip["route_id"]].add(trip["shape_id"])
 
+    # 2. Đọc tọa độ từng nét vẽ (shapes) tạo thành quỹ đạo chạy tàu
     shape_rows = load_csv(DATA_DIR / "shapes.txt")
     shapes: dict[str, list[tuple[int, float, float]]] = defaultdict(list)
     relevant_shape_ids = {shape_id for ids in route_shapes.values() for shape_id in ids}
@@ -111,6 +169,7 @@ def build_rail_assets(boundary_geometry) -> None:
         lon = float(row["shape_pt_lon"])
         shapes[shape_id].append((sequence, lat, lon))
 
+    # 3. Lắp ráp và Cắt (clip) đường sắt theo ranh giới Chicago
     lines_features: list[dict[str, Any]] = []
     seen_hashes: set[str] = set()
     for route_id, shape_ids in route_shapes.items():
@@ -123,6 +182,7 @@ def build_rail_assets(boundary_geometry) -> None:
             for clipped_geometry in clip_line_to_boundary(line, boundary_geometry):
                 feature_key = json.dumps(clipped_geometry["coordinates"])[:2000]
                 dedupe_key = f"{route_id}:{feature_key}"
+                # Loại bỏ các đường chạy trùng lấp
                 if dedupe_key in seen_hashes:
                     continue
                 seen_hashes.add(dedupe_key)
@@ -140,6 +200,7 @@ def build_rail_assets(boundary_geometry) -> None:
                     }
                 )
 
+    # 4. Ghi file cta_rail_lines.geojson
     lines_geojson = {
         "type": "FeatureCollection",
         "metadata": {
@@ -150,6 +211,7 @@ def build_rail_assets(boundary_geometry) -> None:
     }
     (ASSETS_DIR / "cta_rail_lines.geojson").write_text(json.dumps(lines_geojson), encoding="utf-8")
 
+    # 5. Xử lý các trạm dừng (stops.txt)
     stops = load_csv(DATA_DIR / "stops.txt")
     parent_stations = {row["stop_id"]: row for row in stops if row.get("location_type") == "1"}
     stop_to_station: dict[str, str] = {}
@@ -160,6 +222,7 @@ def build_rail_assets(boundary_geometry) -> None:
         elif row.get("parent_station") in parent_stations:
             stop_to_station[stop_id] = row["parent_station"]
 
+    # Tra cứu xem trạm nào phục vụ cho tuyến nào (qua stop_times)
     station_routes: dict[str, set[str]] = defaultdict(set)
     for row in load_csv(DATA_DIR / "stop_times.txt"):
         trip = trips.get(row["trip_id"])
@@ -167,6 +230,7 @@ def build_rail_assets(boundary_geometry) -> None:
         if trip and station_id:
             station_routes[station_id].add(trip["route_id"])
 
+    # Xây dựng danh sách thông tin và loại bỏ các trạm ngoài biên giới
     station_features: list[dict[str, Any]] = []
     for station_id, station in parent_stations.items():
         point = Point(float(station["stop_lon"]), float(station["stop_lat"]))
@@ -186,13 +250,15 @@ def build_rail_assets(boundary_geometry) -> None:
             }
         )
 
+    # 6. Ghi file cta_rail_stations.json
     station_features.sort(key=lambda item: item["stop_name"])
     (ASSETS_DIR / "cta_rail_stations.json").write_text(json.dumps(station_features), encoding="utf-8")
 
 
-
-
 def download_official_gtfs() -> None:
+    """
+    @brief Tải file ZIP Google Transit Data (GTFS) mới nhất từ website CTA.
+    """
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     output_path = RAW_DIR / "cta-official.gtfs.zip"
     request = urllib.request.Request(OFFICIAL_GTFS_URL, headers={"User-Agent": "Mozilla/5.0"})
@@ -201,6 +267,11 @@ def download_official_gtfs() -> None:
 
 
 def ensure_gtfs_extracted() -> str:
+    """
+    @brief Đảm bảo dữ liệu text GTFS (.txt) đã được giải nén sẵn trong thư mục Data.
+    @details Nếu file chưa giải nén, gọi hàm tải file ZIP và thực hiện bung nén.
+    @return Chuỗi trạng thái hoàn thành.
+    """
     if (DATA_DIR / "routes.txt").exists():
         return "used existing local GTFS text files"
     
@@ -216,6 +287,10 @@ def ensure_gtfs_extracted() -> str:
 
 
 def main() -> int:
+    """
+    @brief Luồng thực thi chính (Entry Point) của tiến trình cài đặt dữ liệu.
+    @return 0 nếu thành công toàn bộ, 1 nếu bị lỗi trong tiến trình GTFS.
+    """
     ensure_dirs()
     boundary_geojson, boundary_geometry = build_boundary_asset()
 
