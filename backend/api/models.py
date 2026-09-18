@@ -1,3 +1,13 @@
+"""
+@file models.py
+@brief Định nghĩa các Pydantic Models cho dự án Chicago Route Planner.
+@author Lê Phước Minh Quân & others
+@date 2026-09-18
+@details File này chứa các cấu trúc dữ liệu (Schema) sử dụng Pydantic để xác thực (validate) 
+         dữ liệu đầu vào (Request) từ người dùng và định dạng dữ liệu đầu ra (Response) 
+         của các API RESTful trong hệ thống.
+"""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -7,11 +17,19 @@ from pydantic import BaseModel, Field
 
 
 class Coordinate(BaseModel):
+    """
+    @brief Cấu trúc tọa độ địa lý cơ bản.
+    """
     lat: float
     lon: float
 
 
 class RouteTotals(BaseModel):
+    """
+    @brief Tổng hợp các chỉ số chi phí của toàn bộ lộ trình.
+    @details Chứa thông tin về tổng thời gian, tổng quãng đường phân tách theo 
+             từng loại phương tiện, và thời gian phạt do các yếu tố môi trường.
+    """
     total_sec: int
     walk_sec: int = 0
     rail_sec: int = 0
@@ -24,6 +42,11 @@ class RouteTotals(BaseModel):
 
 
 class RouteSegment(BaseModel):
+    """
+    @brief Mô tả chi tiết một chặng di chuyển trong lộ trình tổng thể.
+    @details Mỗi chặng biểu diễn một hành động di chuyển đồng nhất (chỉ đi bộ hoặc chỉ đi tàu),
+             kèm theo thông tin hình học để vẽ lên bản đồ (Leaflet).
+    """
     kind: Literal["walk", "rail"]
     duration_sec: int
     distance_m: float = 0
@@ -41,6 +64,9 @@ class RouteSegment(BaseModel):
 
 
 class RouteSummary(BaseModel):
+    """
+    @brief Tóm tắt thông tin tổng quan của lộ trình.
+    """
     profile: Literal["walk"]
     selected_strategy: Literal["walk_only", "walk_rail"]
     description: str
@@ -53,6 +79,11 @@ class RouteSummary(BaseModel):
 
 
 class RouteContext(BaseModel):
+    """
+    @brief Lưu trữ thông tin ngữ cảnh môi trường ảnh hưởng đến lộ trình.
+    @details Chứa thông tin phân loại giao thông hiện tại và các cảnh báo về 
+             ùn tắc, ngập úng trên đoạn đường.
+    """
     traffic_bucket_id: str = ""
     traffic_bucket_label: str = ""
     one_way_compliant: bool = True
@@ -62,6 +93,11 @@ class RouteContext(BaseModel):
 
 
 class RouteResponse(BaseModel):
+    """
+    @brief Cấu trúc Response trả về cho client khi tìm đường thành công.
+    @details Tích hợp tất cả các thành phần: tóm tắt (summary), chỉ số (totals), 
+             các chặng (segments) và ngữ cảnh (context).
+    """
     summary: RouteSummary
     totals: RouteTotals
     segments: list[RouteSegment]
@@ -72,6 +108,9 @@ class RouteResponse(BaseModel):
 
 
 class BoundaryResponse(BaseModel):
+    """
+    @brief Cấu trúc Response cho API lấy ranh giới thành phố Chicago.
+    """
     bbox: list[float]
     feature_collection: dict[str, Any]
     source: str
@@ -79,12 +118,18 @@ class BoundaryResponse(BaseModel):
 
 
 class RailMetaResponse(BaseModel):
+    """
+    @brief Cấu trúc Response cho API lấy siêu dữ liệu hệ thống đường sắt (CTA).
+    """
     lines: dict[str, Any]
     stations: list[dict[str, Any]]
     generated_at: str
 
 
 class ContextMetaResponse(BaseModel):
+    """
+    @brief Cấu trúc Response cho API lấy cấu hình ngữ cảnh môi trường.
+    """
     time_profiles: list[dict[str, Any]]
     congestion_corridors: dict[str, Any]
     hazard_zones: dict[str, Any]
@@ -92,6 +137,9 @@ class ContextMetaResponse(BaseModel):
 
 
 class BlockedSegmentInput(BaseModel):
+    """
+    @brief Cấu trúc Request mô tả một đoạn đường bị cấm/phong tỏa.
+    """
     start: Coordinate
     end: Coordinate
     label: str | None = None
@@ -100,6 +148,11 @@ class BlockedSegmentInput(BaseModel):
 
 
 class AdvancedRouteRequest(BaseModel):
+    """
+    @brief Cấu trúc Request payload cho API POST `/api/route`.
+    @details Nhận các thông số nâng cao từ client như danh sách điểm dừng trung gian (stops),
+             chế độ sắp xếp điểm dừng (stop_order_mode) và các đoạn đường cấm thao tác thủ công.
+    """
     origin: Coordinate
     destination: Coordinate
     profile: Literal["walk"] = "walk"
